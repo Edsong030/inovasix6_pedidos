@@ -11,6 +11,7 @@ import {
   Tooltip, ResponsiveContainer,
 } from 'recharts'
 import api from '@/lib/api'
+import { dataApi } from '@/hooks/useApi'
 import { Header } from '@/components/layout/Header'
 import { StatusBadge, ChannelBadge } from '@/components/ui/Badge'
 import { PageLoader } from '@/components/ui/LoadingSpinner'
@@ -95,7 +96,7 @@ export default function DashboardPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await api.get('/orders/dashboard')
+      const res = await dataApi.getDashboard()
       setData(res.data)
     } catch {}
     finally { setLoading(false) }

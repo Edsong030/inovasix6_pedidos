@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Pencil, UserX, Loader2, ShieldCheck } from 'lucide-react'
 import api from '@/lib/api'
+import { dataApi } from '@/hooks/useApi'
 import { Header } from '@/components/layout/Header'
 import { Modal } from '@/components/ui/Modal'
 import { PageLoader } from '@/components/ui/LoadingSpinner'
@@ -86,7 +87,7 @@ export default function UsersPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await api.get('/users')
+      const res = await dataApi.getUsers()
       setUsers(res.data)
     } catch { toast.error('Erro ao carregar usuários') }
     finally { setLoading(false) }
@@ -98,19 +99,16 @@ export default function UsersPage() {
     try {
       const payload: Record<string, unknown> = { ...data }
       if (!payload.password) delete payload.password
-
       if (editUser?.id) {
-        await api.patch(`/users/${editUser.id}`, payload)
+        await dataApi.updateUser(editUser.id, payload)
         toast.success('Usuário atualizado')
       } else {
-        await api.post('/users', payload)
+        await dataApi.createUser(payload)
         toast.success('Usuário criado')
       }
-      setModal(false)
-      setEditUser(undefined)
-      load()
-    } catch (err: any) {
-      const msg = err?.response?.data?.message
+      setModal(false); setEditUser(undefined); load()
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message
       toast.error(Array.isArray(msg) ? msg[0] : msg || 'Erro ao salvar')
       throw err
     }
@@ -118,9 +116,8 @@ export default function UsersPage() {
 
   const deactivate = async (user: AuthUser) => {
     if (!confirm(`Desativar ${user.name}?`)) return
-    await api.patch(`/users/${user.id}`, { active: false })
-    toast.success('Usuário desativado')
-    load()
+    await dataApi.updateUser(user.id, { active: false })
+    toast.success('Usuário desativado'); load()
   }
 
   if (loading) return <PageLoader />

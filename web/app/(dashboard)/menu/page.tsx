@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Loader2, Tag, Package } from 'lucide-react'
 import api from '@/lib/api'
+import { dataApi } from '@/hooks/useApi'
 import { Header } from '@/components/layout/Header'
 import { Modal } from '@/components/ui/Modal'
 import { PageLoader } from '@/components/ui/LoadingSpinner'
@@ -155,7 +156,7 @@ export default function MenuPage() {
 
   const load = useCallback(async () => {
     try {
-      const [c, p] = await Promise.all([api.get('/categories'), api.get('/products')])
+      const [c, p] = await Promise.all([dataApi.getCategories(), dataApi.getProducts()])
       setCategories(c.data)
       setProducts(p.data)
     } catch { toast.error('Erro ao carregar cardápio') }
@@ -167,49 +168,41 @@ export default function MenuPage() {
   // Category CRUD
   const saveCategory = async (data: Partial<Category>) => {
     if (editCat?.id) {
-      await api.patch(`/categories/${editCat.id}`, data)
+      await dataApi.updateCategory(editCat.id, data as Record<string, unknown>)
       toast.success('Categoria atualizada')
     } else {
-      await api.post('/categories', data)
+      await dataApi.createCategory(data as Record<string, unknown>)
       toast.success('Categoria criada')
     }
-    setCatModal(false)
-    setEditCat(undefined)
-    load()
+    setCatModal(false); setEditCat(undefined); load()
   }
 
   const deleteCategory = async (id: string) => {
     if (!confirm('Remover categoria? Os produtos serão afetados.')) return
-    await api.delete(`/categories/${id}`)
-    toast.success('Categoria removida')
-    load()
+    await dataApi.deleteCategory(id)
+    toast.success('Categoria removida'); load()
   }
 
-  // Product CRUD
   const saveProduct = async (data: Partial<Product>) => {
     if (editProd?.id) {
-      await api.patch(`/products/${editProd.id}`, data)
+      await dataApi.updateProduct(editProd.id, data as Record<string, unknown>)
       toast.success('Produto atualizado')
     } else {
-      await api.post('/products', data)
+      await dataApi.createProduct(data as Record<string, unknown>)
       toast.success('Produto criado')
     }
-    setProdModal(false)
-    setEditProd(undefined)
-    load()
+    setProdModal(false); setEditProd(undefined); load()
   }
 
   const toggleAvailable = async (product: Product) => {
-    await api.patch(`/products/${product.id}`, { available: !product.available })
-    toast.success(product.available ? 'Produto desativado' : 'Produto ativado')
-    load()
+    await dataApi.updateProduct(product.id, { available: !product.available })
+    toast.success(product.available ? 'Produto desativado' : 'Produto ativado'); load()
   }
 
   const deleteProduct = async (id: string) => {
     if (!confirm('Remover produto?')) return
-    await api.delete(`/products/${id}`)
-    toast.success('Produto removido')
-    load()
+    await dataApi.deleteProduct(id)
+    toast.success('Produto removido'); load()
   }
 
   const filteredProducts = selCat === 'all' ? products : products.filter(p => p.categoryId === selCat)

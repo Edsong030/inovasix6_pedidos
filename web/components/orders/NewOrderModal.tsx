@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { Plus, Trash2, Search, Loader2 } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import api from '@/lib/api'
+import { dataApi } from '@/hooks/useApi'
 import { formatCurrency } from '@/lib/utils'
 import { ORDER_CHANNEL_LABEL, PAYMENT_LABEL } from '@/types'
 import type { Product, Category, Table } from '@/types'
@@ -62,13 +63,13 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
   useEffect(() => {
     if (!open) return
     Promise.all([
-      api.get('/products'),
-      api.get('/categories'),
-      api.get('/tables'),
+      dataApi.getProducts(),
+      dataApi.getCategories(),
+      dataApi.getTables(),
     ]).then(([p, c, t]) => {
       setProducts(p.data)
       setCategories(c.data)
-      setTables(t.data.filter((tb: Table) => tb.status === 'AVAILABLE'))
+      setTables((t.data as import('@/types').Table[]).filter((tb) => tb.status === 'AVAILABLE'))
     }).catch(() => {})
   }, [open])
 
@@ -98,13 +99,13 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
   const onSubmit = async (data: FormData) => {
     setSaving(true)
     try {
-      await api.post('/orders', data)
+      await dataApi.createOrder(data as Record<string, unknown>)
       toast.success('Pedido criado com sucesso!')
       reset()
       onCreated()
       onClose()
-    } catch (err: any) {
-      const msg = err?.response?.data?.message
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message
       toast.error(Array.isArray(msg) ? msg[0] : msg || 'Erro ao criar pedido')
     } finally {
       setSaving(false)

@@ -7,6 +7,7 @@ import {
 } from 'recharts'
 import { Search, Download, TrendingUp, ShoppingBag, DollarSign, Ticket } from 'lucide-react'
 import api from '@/lib/api'
+import { dataApi } from '@/hooks/useApi'
 import { Header } from '@/components/layout/Header'
 import { StatusBadge, ChannelBadge } from '@/components/ui/Badge'
 import { PageLoader } from '@/components/ui/LoadingSpinner'
@@ -50,7 +51,7 @@ export default function ReportsPage() {
     if (!startDate || !endDate) return
     setLoading(true)
     try {
-      const res = await api.get('/reports/sales', { params: { startDate, endDate } })
+      const res = await dataApi.getSalesReport(startDate, endDate)
       setReport(res.data)
     } catch { toast.error('Erro ao gerar relatório') }
     finally { setLoading(false) }
@@ -59,9 +60,7 @@ export default function ReportsPage() {
   const loadHistory = useCallback(async (p = 1) => {
     setLoading(true)
     try {
-      const res = await api.get('/reports/history', {
-        params: { page: p, limit: 15, ...(statusFilter ? { status: statusFilter } : {}) },
-      })
+      const res = await dataApi.getOrderHistory(p, 15, { status: statusFilter || undefined })
       setHistory(res.data.data)
       setTotalPages(res.data.meta.totalPages)
       setPage(p)

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Filter } from 'lucide-react'
-import api from '@/lib/api'
+import { dataApi } from '@/hooks/useApi'
 import { Header } from '@/components/layout/Header'
 import { OrderCard } from '@/components/orders/OrderCard'
 import { NewOrderModal } from '@/components/orders/NewOrderModal'
@@ -33,7 +33,7 @@ export default function OrdersPage() {
       const params: Record<string, string> = {}
       if (tab !== 'active' && tab !== 'all') params.status = tab
       if (channel !== 'all') params.channel = channel
-      const res = await api.get('/orders', { params })
+      const res = await dataApi.getOrders(params)
       setOrders(res.data)
     } catch {
       toast.error('Erro ao carregar pedidos')
@@ -51,13 +51,13 @@ export default function OrdersPage() {
   }, [load])
 
   const handleStatusChange = async (orderId: string, status: string) => {
-    await api.patch(`/orders/${orderId}/status`, { status })
+    await dataApi.updateOrderStatus(orderId, status)
     toast.success(`Status atualizado: ${ORDER_STATUS_LABEL[status as OrderStatus]}`)
     load()
   }
 
   const handleCancel = async (orderId: string) => {
-    await api.patch(`/orders/${orderId}/status`, { status: 'CANCELLED' })
+    await dataApi.updateOrderStatus(orderId, 'CANCELLED')
     toast.success('Pedido cancelado')
     load()
   }

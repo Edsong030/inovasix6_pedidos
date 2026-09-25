@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Clock, AlertTriangle, CheckCircle, Loader2, RefreshCw } from 'lucide-react'
 import api from '@/lib/api'
+import { dataApi } from '@/hooks/useApi'
 import { Header } from '@/components/layout/Header'
 import { ChannelBadge } from '@/components/ui/Badge'
 import { formatTime, cn } from '@/lib/utils'
@@ -143,7 +144,7 @@ export default function KitchenPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await api.get('/kitchen/queue')
+      const res = await dataApi.getKitchenQueue()
       setOrders(res.data)
       setLastUpdate(new Date())
     } catch {
@@ -162,7 +163,7 @@ export default function KitchenPage() {
   }, [load])
 
   const handleAdvance = async (orderId: string, status: string) => {
-    await api.patch(`/orders/${orderId}/status`, { status })
+    await dataApi.updateOrderStatus(orderId, status)
     toast.success(status === 'READY' ? '✅ Pedido pronto!' : '🍳 Preparo iniciado!')
     load()
   }

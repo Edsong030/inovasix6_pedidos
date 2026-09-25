@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Users, Trash2, Loader2 } from 'lucide-react'
 import api from '@/lib/api'
+import { dataApi } from '@/hooks/useApi'
 import { Header } from '@/components/layout/Header'
 import { Modal } from '@/components/ui/Modal'
 import { StatusBadge } from '@/components/ui/Badge'
@@ -132,7 +133,7 @@ export default function TablesPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await api.get('/tables')
+      const res = await dataApi.getTables()
       setTables(res.data)
     } catch {
       toast.error('Erro ao carregar mesas')
@@ -149,13 +150,13 @@ export default function TablesPage() {
   }, [load])
 
   const handleStatusChange = async (id: string, status: TableStatus) => {
-    await api.patch(`/tables/${id}/status`, { status })
+    await dataApi.updateTableStatus(id, status)
     toast.success(`Mesa ${TABLE_STATUS_LABEL[status]}`)
     load()
   }
 
   const handleDelete = async (id: string) => {
-    await api.delete(`/tables/${id}`)
+    await dataApi.deleteTable(id)
     toast.success('Mesa removida')
     load()
   }
@@ -164,14 +165,15 @@ export default function TablesPage() {
     if (!newNumber.trim()) return
     setSaving(true)
     try {
-      await api.post('/tables', { number: newNumber.trim(), capacity: parseInt(newCapacity) || 4 })
+      await dataApi.createTable({ number: newNumber.trim(), capacity: parseInt(newCapacity) || 4 })
       toast.success(`Mesa ${newNumber} criada!`)
       setNewNumber('')
       setNewCapacity('4')
       setShowNew(false)
       load()
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Erro ao criar mesa')
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(msg || 'Erro ao criar mesa')
     } finally {
       setSaving(false)
     }

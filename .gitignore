@@ -35,3 +35,20 @@ Thumbs.db
 
 # Test coverage
 coverage/
+
+# API secrets — NUNCA publicar
+api/.env
+api/dist/
+api/node_modules/
+
+# Prisma skills / agent files
+api/.agents/
+api/.claude/
+api/.cursor/
+api/.devin/
+api/prisma/migrations/
+
+# Web
+web/.next/
+web/out/
+web/node_modules/
