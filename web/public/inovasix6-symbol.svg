@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" fill="none">
+  <defs>
+    <!-- Gradiente diagonal azul → roxo → pink, igual ao logo original -->
+    <linearGradient id="logoGrad" x1="5" y1="5" x2="75" y2="75" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#3B82F6"/>
+      <stop offset="40%"  stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#EC4899"/>
+    </linearGradient>
+    <linearGradient id="logoGrad2" x1="75" y1="5" x2="5" y2="75" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#60A5FA"/>
+      <stop offset="50%"  stop-color="#A78BFA"/>
+      <stop offset="100%" stop-color="#F472B6"/>
+    </linearGradient>
+  </defs>
+
+  <!--
+    "i" minúsculo:
+    - Ponto: pequeno círculo no topo esquerdo (~15, 14)
+    - Haste: linha vertical de (~15, 24) até (~15, 52)
+    Stroke arredondado, espessura ~8px
+  -->
+
+  <!-- Ponto do i -->
+  <circle cx="16" cy="13" r="5" fill="url(#logoGrad)"/>
+
+  <!-- Haste do i -->
+  <line x1="16" y1="24" x2="16" y2="54"
+        stroke="url(#logoGrad)" stroke-width="8" stroke-linecap="round"/>
+
+  <!--
+    "6" moderno:
+    - Cauda: arco que parte do topo (~34,12) desce curvando para a direita
+    - Círculo inferior: elipse centrada em (~42, 50), raio ~14x12
+
+    A cauda do 6 parte de cima-direita, desce e se conecta
+    com a parte circular na altura média do glifo.
+  -->
+
+  <!-- Cauda do 6: arco da parte superior até entrar no círculo -->
+  <path d="M 60 16 C 60 10, 52 6, 42 6 C 32 6, 26 12, 26 20 C 26 28, 30 34, 38 36"
+        stroke="url(#logoGrad2)" stroke-width="8"
+        stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- Círculo do 6 (parte inferior do numeral) -->
+  <circle cx="42" cy="52" r="16"
+          stroke="url(#logoGrad)" stroke-width="8" fill="none"/>
+
+  <!-- Linha vertical que conecta a cauda ao círculo -->
+  <line x1="26" y1="36" x2="26" y2="52"
+        stroke="url(#logoGrad2)" stroke-width="8" stroke-linecap="round"/>
+
+</svg>

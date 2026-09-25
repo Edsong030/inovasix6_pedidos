@@ -1,0 +1,59 @@
+version: '3.9'
+
+services:
+  # ─── PostgreSQL ────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: inovasix_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: inovasix_pedidos
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ─── API NestJS ────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: inovasix_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/inovasix_pedidos?schema=public
+      JWT_SECRET: inovasix6-super-secret-key-change-in-production
+      JWT_EXPIRES_IN: 8h
+      PORT: 3001
+      NODE_ENV: production
+      ANOTA_AI_ENABLED: 'false'
+    ports:
+      - '3001:3001'
+    command: sh -c "npx prisma migrate deploy && npx ts-node prisma/seed.ts || true && node dist/src/main"
+
+  # ─── Web Next.js ───────────────────────────────────────────────────────────
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: inovasix_web
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001/api
+    ports:
+      - '3000:3000'
+
+volumes:
+  postgres_data:
