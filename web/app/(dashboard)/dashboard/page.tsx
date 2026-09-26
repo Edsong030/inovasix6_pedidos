@@ -6,7 +6,7 @@ import {
   ShoppingBag, ChefHat, DollarSign, Clock, Plus, FileText, ChevronRight, CalendarDays,
   ChartColumn, ChartLine, ClipboardList, CircleCheck, Bike, PackageCheck, CircleX,
   TriangleAlert, CircleAlert, Store, UtensilsCrossed, MessageCircle, Timer, Sparkles,
-  ArrowUpRight, ArrowDownRight, Minus, CakeSlice, CalendarClock,
+  ArrowUpRight, ArrowDownRight, Minus, CakeSlice, CalendarClock, CirclePause,
 } from 'lucide-react'
 import {
   BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -20,6 +20,10 @@ import { PageLoader } from '@/components/ui/LoadingSpinner'
 import { NewOrderModal } from '@/components/orders/NewOrderModal'
 import { formatCurrency, formatTime, cn } from '@/lib/utils'
 import { averagePrepMinutes, formatPrepMinutes } from '@/lib/prepTime'
+import { formatDeadline, timingText } from '@/lib/orderTiming'
+import { serverNow } from '@/lib/serverClock'
+import { useOrderTiming, TIMING_STYLE } from '@/components/orders/OrderTiming'
+import { OrdersPausedNotice, useOrdersPaused, PAUSED_TITLE } from '@/components/orders/OrdersPausedNotice'
 import type { Order, OrderStatus, UserRole } from '@/types'
 
 // ─── Estilo (mesmo padrão visual de Relatórios) ───────────────────────────────
@@ -31,8 +35,6 @@ const TOOLTIP_STYLE = {
   boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
 }
 
-/** Pedido recebido/em preparo há mais que isso é destacado. */
-const WAIT_ALERT_MIN = 10
 const WAITING_STATUSES: OrderStatus[] = ['RECEIVED', 'PREPARING']
 const REVENUE_STATUSES: OrderStatus[] = ['READY', 'OUT_FOR_DELIVERY', 'DELIVERED']
 
@@ -73,7 +75,6 @@ function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-const minutesSince = (iso: string, now: number) => Math.max(0, Math.floor((now - new Date(iso).getTime()) / 60000))
 const fmtInt = (n: number) => n.toLocaleString('pt-BR')
 const fmtPct = (n: number) => `${Math.abs(n).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}%`
 
@@ -173,9 +174,12 @@ export default function DashboardPage() {
   const [yesterday, setYesterday] = useState<Order[]>([])
   const [loading,   setLoading]   = useState(true)
   const [failed,    setFailed]    = useState(false)
-  const [now,       setNow]       = useState(() => Date.now())
+  // Horário do servidor (API) — as previsões de pronto são comparadas com ele
+  const [now,       setNow]       = useState(() => serverNow())
   const [chartMode, setChartMode] = useState<'orders' | 'revenue'>('orders')
   const [showNew,   setShowNew]   = useState(false)
+  const getTiming = useOrderTiming()
+  const paused    = useOrdersPaused()
 
   const load = useCallback(async () => {
     const d = new Date()
@@ -190,7 +194,7 @@ export default function DashboardPage() {
     } catch {
       setFailed(true)
     } finally {
-      setNow(Date.now())
+      setNow(serverNow())
       setLoading(false)
     }
   }, [])
@@ -214,16 +218,16 @@ export default function DashboardPage() {
   const prev      = yesterday.length ? metrics(yesterday, minuteNow) : null
   const inPrep    = today.filter(o => o.status === 'PREPARING').length
 
-  // ─── Espera ────────────────────────────────────────────────────────────────
+  // ─── Prazo (previsão de pronto) ─────────────────────────────────────────────
+  // Atrasado = recebido/em preparo depois do horário previsto (substitui a regra fixa de 10 min)
   const waiting = today
     .filter(o => WAITING_STATUSES.includes(o.status))
-    // Encomenda com retirada/entrega daqui a mais de 1h ainda não está atrasada
-    .filter(o => !o.scheduledFor || new Date(o.scheduledFor).getTime() - now <= 60 * 60000)
-    .map(o => ({ order: o, minutes: minutesSince(o.createdAt, now) }))
-    .sort((a, b) => b.minutes - a.minutes)
-  const late     = waiting.filter(w => w.minutes >= WAIT_ALERT_MIN)
+    .map(o => ({ order: o, timing: getTiming(o, now)! }))
+  const late     = waiting.filter(w => w.timing.state === 'late').sort((a, b) => b.timing.minutesLate - a.timing.minutesLate)
+  const dueSoon  = waiting.filter(w => w.timing.state === 'due_soon')
   const critical = late[0]
   const lateIds  = new Set(late.map(w => w.order.id))
+  const timingById = new Map(waiting.map(w => [w.order.id, w.timing]))
 
   // ─── Status ────────────────────────────────────────────────────────────────
   const statusCounts = today.reduce<Record<string, number>>((acc, o) => {
@@ -269,15 +273,20 @@ export default function DashboardPage() {
         </p>
       )}
 
-      {/* Ações rápidas + alerta de espera */}
+      {paused && can(ROLES_NEW_ORDER) && <div id="orders-paused"><OrdersPausedNotice className="mb-4" /></div>}
+
+      {/* Ações rápidas + alerta de atraso */}
       <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] gap-4 mb-5">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {can(ROLES_NEW_ORDER) && (
             <button
               onClick={() => setShowNew(true)}
-              className="flex items-center justify-center gap-2.5 rounded-2xl bg-brand-600 hover:bg-brand-500 px-4 py-3.5 text-sm font-semibold text-white shadow-glow transition-colors"
+              disabled={paused}
+              title={paused ? PAUSED_TITLE : undefined}
+              aria-describedby={paused ? 'orders-paused' : undefined}
+              className="flex items-center justify-center gap-2.5 rounded-2xl bg-brand-600 hover:bg-brand-500 px-4 py-3.5 text-sm font-semibold text-white shadow-glow transition-colors disabled:bg-white/[0.06] disabled:text-gray-500 disabled:shadow-none disabled:cursor-not-allowed"
             >
-              <Plus size={18} /> Novo pedido
+              {paused ? <CirclePause size={18} /> : <Plus size={18} />} {paused ? 'Pedidos pausados' : 'Novo pedido'}
             </button>
           )}
           {can(ROLES_KITCHEN) && (
@@ -297,9 +306,9 @@ export default function DashboardPage() {
             <TriangleAlert size={20} className="text-amber-300 flex-shrink-0" />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-amber-200">
-                {late.length} {late.length === 1 ? 'pedido aguardando' : 'pedidos aguardando'} há mais de {WAIT_ALERT_MIN} min
+                {late.length} {late.length === 1 ? 'pedido passou' : 'pedidos passaram'} da previsão de pronto
               </p>
-              <p className="text-xs text-amber-200/60">Recebidos ou em preparo sem ficar prontos</p>
+              <p className="text-xs text-amber-200/60">Recebidos ou em preparo depois do horário previsto</p>
             </div>
             <Link href="/kitchen" className="flex-shrink-0 inline-flex items-center gap-1 rounded-lg border border-amber-400/40 px-3 py-1.5 text-xs font-semibold text-amber-200 hover:bg-amber-400/10 transition-colors">
               Ver agora <ChevronRight size={14} />
@@ -308,7 +317,9 @@ export default function DashboardPage() {
         ) : (
           <div className={cn(PANEL, 'flex items-center gap-3 px-4 py-3')}>
             <Sparkles size={18} className="text-emerald-300 flex-shrink-0" />
-            <p className="text-sm text-gray-300">Nenhum pedido aguardando há mais de {WAIT_ALERT_MIN} min.</p>
+            <p className="text-sm text-gray-300">
+              Nenhum pedido atrasado.{dueSoon.length > 0 && <span className="text-amber-200"> {dueSoon.length} {dueSoon.length === 1 ? 'vence' : 'vencem'} em até 5 min.</span>}
+            </p>
           </div>
         )}
       </div>
@@ -329,7 +340,7 @@ export default function DashboardPage() {
           icon={<ChefHat size={20} className="text-amber-300" />}
           iconClass="bg-amber-500/15"
           t={null}
-          hint={late.length ? `${late.length} aguardando há +${WAIT_ALERT_MIN} min` : `${business.inKitchen} agora`}
+          hint={late.length ? `${late.length} ${late.length === 1 ? 'atrasado' : 'atrasados'} (passou da previsão)` : `${business.inKitchen} agora`}
         />
         <KpiCard
           label="Faturamento"
@@ -469,7 +480,7 @@ export default function DashboardPage() {
                   {recent.map(o => {
                     const isLate  = lateIds.has(o.id)
                     const active  = !['DELIVERED', 'CANCELLED'].includes(o.status)
-                    const minutes = minutesSince(o.createdAt, now)
+                    const timing  = timingById.get(o.id)
                     return (
                       <tr key={o.id} className={cn('transition-colors', isLate ? 'bg-amber-500/[0.06] hover:bg-amber-500/10' : 'hover:bg-white/[0.02]')}>
                         <td className={cn('py-3 pl-5 pr-2 font-bold whitespace-nowrap', isLate ? 'text-amber-300 border-l-2 border-amber-400' : 'text-white')}>
@@ -489,9 +500,9 @@ export default function DashboardPage() {
                               <CalendarClock size={11} /> {new Date(o.scheduledFor).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                             </p>
                           )}
-                          {active && (
-                            <p className={cn('text-xs flex items-center gap-1', isLate ? 'text-amber-300' : 'text-gray-500')}>
-                              <Timer size={11} /> há {minutes} min
+                          {active && timing && (
+                            <p className={cn('text-xs flex items-center gap-1', TIMING_STYLE[timing.state].text)} title={`Pronto previsto para ${formatDeadline(timing.deadline, now)}`}>
+                              <Timer size={11} /> {timingText(timing)}
                             </p>
                           )}
                         </td>
@@ -516,7 +527,7 @@ export default function DashboardPage() {
               {recent.map(o => {
                 const isLate  = lateIds.has(o.id)
                 const active  = !['DELIVERED', 'CANCELLED'].includes(o.status)
-                const minutes = minutesSince(o.createdAt, now)
+                const timing  = timingById.get(o.id)
                 return (
                   <li key={o.id}>
                     <Link
@@ -541,9 +552,9 @@ export default function DashboardPage() {
                         </div>
                         <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-400">
                           <span className="tabular-nums">{formatTime(o.createdAt)}</span>
-                          {active && (
-                            <span className={cn('inline-flex items-center gap-1', isLate && 'text-amber-300')}>
-                              <Timer size={11} /> há {minutes} min
+                          {active && timing && (
+                            <span className={cn('inline-flex items-center gap-1', TIMING_STYLE[timing.state].text)}>
+                              <Timer size={11} /> {timingText(timing)} · previsto {formatDeadline(timing.deadline, now)}
                             </span>
                           )}
                           {o.scheduledFor && (
@@ -566,7 +577,7 @@ export default function DashboardPage() {
           <div className="rounded-2xl border border-amber-400/30 bg-[#140f08] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.45)] flex flex-col min-w-0 xl:self-start">
             <div className="flex items-center gap-2 mb-4">
               <CircleAlert size={18} className="text-amber-300" />
-              <h3 className="text-sm font-semibold text-amber-200">Pedido aguardando há mais tempo</h3>
+              <h3 className="text-sm font-semibold text-amber-200">Pedido mais atrasado</h3>
             </div>
             <p className="text-2xl font-bold text-white">#{critical.order.orderNumber}</p>
             <p className="text-sm font-medium text-gray-200 mt-1">
@@ -579,8 +590,8 @@ export default function DashboardPage() {
             <div className="mt-4 flex items-center gap-3 rounded-xl bg-white/[0.04] px-4 py-3">
               <Clock size={20} className="text-amber-300 flex-shrink-0" />
               <div>
-                <p className="text-xs text-gray-400">Aguardando há</p>
-                <p className="text-lg font-bold text-amber-200">{critical.minutes} min</p>
+                <p className="text-xs text-gray-400">Previsto para {formatDeadline(critical.timing.deadline, now)}</p>
+                <p className="text-lg font-bold text-red-300">{timingText(critical.timing)}</p>
               </div>
               <p className="ml-auto text-sm font-semibold text-white tabular-nums">{formatCurrency(Number(critical.order.total))}</p>
             </div>
@@ -598,7 +609,7 @@ export default function DashboardPage() {
             <p className="text-sm font-semibold text-white">Operação em dia</p>
             <p className="text-xs text-gray-500 mt-1 max-w-[16rem]">
               {waiting.length
-                ? `${waiting.length} ${waiting.length === 1 ? 'pedido' : 'pedidos'} na fila, todos dentro de ${WAIT_ALERT_MIN} min.`
+                ? `${waiting.length} ${waiting.length === 1 ? 'pedido' : 'pedidos'} na fila, todos dentro da previsão de pronto.`
                 : `Nenhum pedido aguardando ${business.inKitchen}.`}
             </p>
           </div>

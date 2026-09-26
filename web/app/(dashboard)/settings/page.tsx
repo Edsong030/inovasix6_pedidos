@@ -512,7 +512,7 @@ export default function SettingsPage() {
             {/* Operação */}
             <Section icon={SlidersHorizontal} title="Operação" description="Preferências do dia a dia" className="max-xl:order-5">
               <div className="space-y-5">
-                <Field id="avgPrepMinutes" label="Tempo médio estimado de preparo" error={errors.avgPrepMinutes} hint={`Entre ${LIMITS.prepMin} e ${LIMITS.prepMax} minutos`}>
+                <Field id="avgPrepMinutes" label="Tempo médio estimado de preparo" error={errors.avgPrepMinutes} hint={`Entre ${LIMITS.prepMin} e ${LIMITS.prepMax} minutos. Define a previsão de pronto dos novos pedidos; os já criados mantêm a previsão.`}>
                   <div className="relative w-full sm:w-44">
                     <input {...errProps('avgPrepMinutes', errors.avgPrepMinutes)} type="number" min={LIMITS.prepMin} max={LIMITS.prepMax} step={1}
                       className={cn(errProps('avgPrepMinutes', errors.avgPrepMinutes).className, 'pr-12')}
@@ -525,7 +525,7 @@ export default function SettingsPage() {
                 <div className="flex items-start justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.02] p-3.5">
                   <div className="min-w-0">
                     <label htmlFor="acceptingOrders" className="text-sm font-medium text-white">Aceitar pedidos</label>
-                    <p className="text-xs text-gray-500 mt-0.5">Quando desligado, a tela de novo pedido mostra que o recebimento está pausado.</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Quando desligado, ninguém consegue registrar novos pedidos (o sistema recusa) até reativar aqui.</p>
                   </div>
                   <Switch id="acceptingOrders" checked={form.acceptingOrders} onChange={v => set('acceptingOrders', v)} label="Aceitar pedidos" />
                 </div>

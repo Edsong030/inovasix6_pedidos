@@ -1,12 +1,15 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Filter } from 'lucide-react'
+import { Plus, Filter, CirclePause } from 'lucide-react'
 import { dataApi } from '@/hooks/useApi'
 import { Header } from '@/components/layout/Header'
 import { OrderCard } from '@/components/orders/OrderCard'
 import { NewOrderModal } from '@/components/orders/NewOrderModal'
 import { PageLoader } from '@/components/ui/LoadingSpinner'
+import { OrdersPausedNotice, useOrdersPaused, PAUSED_TITLE } from '@/components/orders/OrdersPausedNotice'
+import { useServerNow } from '@/hooks/useServerNow'
+import { serverNow } from '@/lib/serverClock'
 import { ORDER_STATUS_LABEL, ORDER_CHANNEL_LABEL } from '@/types'
 import type { Order, OrderStatus, OrderChannel } from '@/types'
 import toast from 'react-hot-toast'
@@ -27,6 +30,11 @@ export default function OrdersPage() {
   const [tab,        setTab]        = useState('active')
   const [channel,    setChannel]    = useState<string>('all')
   const [showNew,    setShowNew]    = useState(false)
+  const paused = useOrdersPaused()
+  // Re-renderiza a cada 30 s; o horário (do servidor) é lido a cada renderização,
+  // inclusive logo após recarregar a lista, para a contagem não ficar defasada
+  useServerNow()
+  const now    = serverNow()
 
   // Aba inicial via ?status=RECEIVED (links do Dashboard)
   useEffect(() => {
@@ -85,11 +93,18 @@ export default function OrdersPage() {
         subtitle={`${filtered.length} pedido${filtered.length !== 1 ? 's' : ''}`}
         onRefresh={load}
         actions={
-          <button onClick={() => setShowNew(true)} className="btn-primary">
-            <Plus size={16} /> Novo Pedido
+          <button
+            onClick={() => setShowNew(true)}
+            disabled={paused}
+            title={paused ? PAUSED_TITLE : undefined}
+            className="btn-primary whitespace-nowrap"
+          >
+            {paused ? <><CirclePause size={16} /> Pedidos pausados</> : <><Plus size={16} /> Novo Pedido</>}
           </button>
         }
       />
+
+      <OrdersPausedNotice className="mb-4" />
 
       {/* Status tabs */}
       {/* Abaixo de 1024px as abas quebram linha em vez de rolar para o lado */}
@@ -150,6 +165,7 @@ export default function OrdersPage() {
             <OrderCard
               key={order.id}
               order={order}
+              now={now}
               onStatusChange={handleStatusChange}
               onCancel={handleCancel}
             />

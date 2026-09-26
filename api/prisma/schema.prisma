@@ -216,6 +216,9 @@ model Order {
   /// Encomenda: data/hora combinada para retirada ou entrega
   isPreorder      Boolean       @default(false)
   scheduledFor    DateTime?
+  /// Previsão de pronto, calculada no servidor ao criar o pedido (criação + tempo médio
+  /// do negócio, ou o horário da encomenda). Mudar o tempo médio não altera pedidos já criados.
+  estimatedReadyAt DateTime?
   /// Identificador no canal de origem (iFood, WhatsApp...) — integração futura
   externalRef     String?
   createdAt       DateTime      @default(now())

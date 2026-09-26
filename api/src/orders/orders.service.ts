@@ -2,11 +2,13 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto, UpdateOrderStatusDto } from './dto/create-order.dto';
 import { OrderStatus } from '@prisma/client';
 import { averagePrepMinutes } from './prep-time';
+import { estimateReadyAt } from './order-timing';
 
 @Injectable()
 export class OrdersService {
@@ -47,6 +49,18 @@ export class OrdersService {
   }
 
   async create(restaurantId: string, userId: string, dto: CreateOrderDto) {
+    // Regra definitiva (o frontend só reflete): configuração do restaurante do token
+    const restaurant = await this.prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { acceptingOrders: true, avgPrepMinutes: true },
+    });
+    if (!restaurant) throw new NotFoundException('Estabelecimento não encontrado');
+    if (!restaurant.acceptingOrders) {
+      throw new ConflictException(
+        'O recebimento de pedidos está pausado. Um administrador ou gerente pode reativar em Configurações.',
+      );
+    }
+
     if (!dto.items || dto.items.length === 0) {
       throw new BadRequestException('Pedido deve ter pelo menos um item');
     }
@@ -141,6 +155,8 @@ export class OrdersService {
         notes: dto.notes,
         isPreorder,
         scheduledFor,
+        // Relógio do servidor + tempo médio do negócio (nunca vem do navegador)
+        estimatedReadyAt: estimateReadyAt(new Date(), restaurant.avgPrepMinutes, scheduledFor),
         subtotal,
         discount,
         total,

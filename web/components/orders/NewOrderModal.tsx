@@ -52,6 +52,7 @@ function toLocalInput(d: Date): string {
 export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) {
   const business = useBusiness()
   const { settings } = useSettings()
+  const paused = !!settings && !settings.acceptingOrders
   const [products,   setProducts]   = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [tables,     setTables]     = useState<Table[]>([])
@@ -191,10 +192,10 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
   return (
     <Modal open={open} onClose={onClose} title={isPreorder ? 'Nova Encomenda' : 'Novo Pedido'} size="xl">
       <form onSubmit={handleSubmit(onSubmit)}>
-        {settings && !settings.acceptingOrders && (
+        {paused && (
           <p className="mb-4 flex items-start gap-2 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
             <TriangleAlert size={14} className="mt-0.5 flex-shrink-0" />
-            O recebimento de pedidos está pausado em Configurações. Você ainda pode registrar pedidos manualmente.
+            O recebimento de pedidos está pausado em Configurações. Novos pedidos não podem ser registrados até um administrador ou gerente reativar.
           </p>
         )}
         {settings?.orderMessage && (
@@ -471,7 +472,7 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
         {/* Footer */}
         <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-card-border">
           <button type="button" onClick={onClose} className="btn-secondary max-sm:flex-1 max-sm:justify-center">Cancelar</button>
-          <button type="submit" disabled={saving || fields.length === 0} className="btn-primary max-sm:flex-1 max-sm:justify-center">
+          <button type="submit" disabled={saving || fields.length === 0 || paused} className="btn-primary max-sm:flex-1 max-sm:justify-center">
             {saving ? <><Loader2 size={14} className="animate-spin" /> Criando...</> : isPreorder ? 'Registrar encomenda' : 'Criar Pedido'}
           </button>
         </div>

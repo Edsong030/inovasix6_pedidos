@@ -89,7 +89,8 @@ export const DEMO_ORDERS: Order[] = [
     subtotal: 110.80, discount: 0, total: 110.80,
     tableId: 't-01', table: { id: 't-01', number: '01' },
     user: { id: 'demo-admin', name: 'Administrador Demo' },
-    createdAt: ago(18), updatedAt: ago(12), prepStartedAt: ago(12),
+    // Passou da previsão (34 min > 30 min): exemplo de pedido atrasado
+    createdAt: ago(34), updatedAt: ago(28), prepStartedAt: ago(28),
     readyAt: null, deliveredAt: null, cancelledAt: null,
     items: [
       { id: 'oi-1a', productId: 'p-04', productName: 'Filé ao Molho Madeira', quantity: 1, unitPrice: 58.90, totalPrice: 58.90 },
@@ -104,7 +105,8 @@ export const DEMO_ORDERS: Order[] = [
     customerPhone: '(11) 98765-4321', deliveryAddress: 'Av. Paulista, 1000 - Apto 52',
     subtotal: 87.80, discount: 5.00, total: 82.80,
     user: { id: 'demo-admin', name: 'Administrador Demo' },
-    createdAt: ago(5), updatedAt: ago(5),
+    // Próximo do prazo: faltam ~4 min para a previsão de 30 min
+    createdAt: ago(26), updatedAt: ago(26),
     prepStartedAt: null, readyAt: null, deliveredAt: null, cancelledAt: null,
     items: [
       { id: 'oi-2a', productId: 'p-08', productName: 'Margherita',          quantity: 1, unitPrice: 45.90, totalPrice: 45.90 },

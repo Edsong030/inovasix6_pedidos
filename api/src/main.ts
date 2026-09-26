@@ -20,6 +20,8 @@ async function bootstrap() {
   app.enableCors({
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
     credentials: true,
+    // O frontend usa o Date da resposta para alinhar contagens (previsão de pronto) ao relógio do servidor
+    exposedHeaders: ['Date'],
   });
 
   // Validação global dos DTOs

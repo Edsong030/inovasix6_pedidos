@@ -6,6 +6,8 @@
 
 import { getDemoDataset } from './data'
 import { getDemoBusinessType } from './businessType'
+import { getDemoSettings } from './settings'
+import { deadlineOf, estimateReadyAt, timingState } from '@/lib/orderTiming'
 import type { BusinessType, Category, Product, Table, Order, OrderStatus, TableStatus } from '@/types'
 
 // ─── Estado mutável em módulo (singleton por aba do browser) ──────────────────
@@ -23,8 +25,18 @@ function load(type: BusinessType) {
   categories      = structuredClone(data.categories)
   products        = structuredClone(data.products)
   tables          = structuredClone(data.tables)
-  orders          = structuredClone(data.orders)
+  // Pedidos de exemplo: previsão = criação + tempo médio configurado para este tipo
+  const prep      = getDemoSettings(type).avgPrepMinutes
+  orders          = structuredClone(data.orders).map(o => ({
+    ...o,
+    estimatedReadyAt: o.estimatedReadyAt ?? deadlineOf(o, prep).toISOString(),
+  }))
   nextOrderNumber = data.orders.length + 1
+}
+
+/** Mesmo formato do erro da API (axios), para as telas tratarem igual nos dois modos. */
+function conflict(message: string) {
+  return Object.assign(new Error(message), { response: { status: 409, data: { message, statusCode: 409 } } })
 }
 load(businessType)
 
@@ -102,6 +114,12 @@ export const demoStore = {
     scheduledFor?: string
     items: { productId: string; quantity: number; notes?: string; addonIds?: string[] }[]
   }, userId = 'demo-admin', userName = 'Demo') => {
+    // Mesma regra da API: com o recebimento pausado, nenhum pedido é criado (409)
+    const settings = getDemoSettings(businessType)
+    if (!settings.acceptingOrders) {
+      throw conflict('O recebimento de pedidos está pausado. Um administrador ou gerente pode reativar em Configurações.')
+    }
+    const nowMs = Date.now()
     const itemsData = dto.items.map(item => {
       const prod = products.find(p => p.id === item.productId)
       // Mesmo cálculo da API: preço dos adicionais vem do cadastro
@@ -123,7 +141,7 @@ export const demoStore = {
     })
     const subtotal = itemsData.reduce((s, i) => s + i.totalPrice, 0)
     const discount = dto.discount ?? 0
-    const now = new Date().toISOString()
+    const now = new Date(nowMs).toISOString()
     const order: Order = {
       id:              uid(),
       orderNumber:     nextOrderNumber++,
@@ -153,6 +171,8 @@ export const demoStore = {
       cancelledAt:     null,
       isPreorder:      !!dto.isPreorder || !!dto.scheduledFor,
       scheduledFor:    dto.scheduledFor ?? null,
+      // Mesma regra da API: agora + tempo médio configurado (ou horário da encomenda)
+      estimatedReadyAt: estimateReadyAt(nowMs, settings.avgPrepMinutes, dto.scheduledFor).toISOString(),
     }
     orders.unshift(order)
     // Ocupa mesa se salão
@@ -188,19 +208,23 @@ export const demoStore = {
   },
 
   getKitchenQueue: () => {
-    const now = Date.now()
-    // Mesma regra da API: encomendas seguem a data de retirada/entrega
-    const dueAt = (o: Order) => new Date(o.scheduledFor ?? o.createdAt).getTime()
+    const now  = Date.now()
+    const prep = getDemoSettings(businessType).avgPrepMinutes
+    // Mesma regra da API: previsão de pronto mais próxima primeiro (atrasados no topo)
     return orders
       .filter(o => ['RECEIVED','PREPARING'].includes(o.status))
-      .sort((a, b) => dueAt(a) - dueAt(b))
       .map(o => {
-        const elapsedMinutes = Math.floor((now - new Date(o.createdAt).getTime()) / 60000)
-        const isUrgent = o.scheduledFor
-          ? new Date(o.scheduledFor).getTime() - now <= 60 * 60000
-          : elapsedMinutes >= 20
-        return { ...o, elapsedMinutes, isUrgent }
+        const timing = timingState(o, prep, now)
+        const elapsedMinutes = Math.max(0, Math.floor((now - new Date(o.createdAt).getTime()) / 60000))
+        const isUrgent = timing.state === 'late' || (!!o.scheduledFor && timing.state === 'due_soon')
+        return {
+          ...o,
+          estimatedReadyAt: timing.deadline.toISOString(),
+          elapsedMinutes, isUrgent,
+          timingState: timing.state, minutesLeft: timing.minutesLeft, minutesLate: timing.minutesLate,
+        }
       })
+      .sort((a, b) => Date.parse(a.estimatedReadyAt) - Date.parse(b.estimatedReadyAt))
   },
 
   // Tipo de negócio atual da demo

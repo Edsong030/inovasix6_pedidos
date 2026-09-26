@@ -3,23 +3,28 @@
 import { useState } from 'react'
 import { Clock, ChevronDown, ChevronUp, CheckCircle, XCircle, Loader2, CalendarClock } from 'lucide-react'
 import { StatusBadge, ChannelBadge } from '@/components/ui/Badge'
-import { formatCurrency, formatTime, elapsedMinutes, NEXT_STATUS, NEXT_STATUS_LABEL, cn } from '@/lib/utils'
+import { formatCurrency, formatTime, NEXT_STATUS, NEXT_STATUS_LABEL, cn } from '@/lib/utils'
 import { PAYMENT_LABEL } from '@/types'
 import { dataApi } from '@/hooks/useApi'
 import type { Order } from '@/types'
 import { formatQuantity } from '@/lib/business'
+import { OrderTimingLine, useOrderTiming } from '@/components/orders/OrderTiming'
 
 interface OrderCardProps {
   order: Order
+  /** Horário do servidor (ms) para a previsão de pronto */
+  now: number
   onStatusChange: (orderId: string, status: string) => Promise<void>
   onCancel: (orderId: string) => Promise<void>
 }
 
-export function OrderCard({ order, onStatusChange, onCancel }: OrderCardProps) {
+export function OrderCard({ order, now, onStatusChange, onCancel }: OrderCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [loading, setLoading]   = useState(false)
 
-  const elapsed     = elapsedMinutes(order.createdAt)
+  const elapsed     = Math.max(0, Math.floor((now - new Date(order.createdAt).getTime()) / 60000))
+  // Destaque pelo prazo (previsão de pronto), não por tempo fixo desde a criação
+  const timing      = useOrderTiming()(order, now)
   const nextStatus  = NEXT_STATUS[order.status]
   const nextLabel   = NEXT_STATUS_LABEL[order.status]
   const canCancel   = !['DELIVERED', 'CANCELLED'].includes(order.status)
@@ -43,7 +48,8 @@ export function OrderCard({ order, onStatusChange, onCancel }: OrderCardProps) {
     <div className={cn(
       'card border transition-all duration-200',
       order.status === 'CANCELLED' && 'opacity-60',
-      elapsed >= 20 && !isFinished && 'border-amber-500/40',
+      timing?.state === 'late' && 'border-red-500/50',
+      timing?.state === 'due_soon' && 'border-amber-500/50',
     )}>
       {/* Header */}
       <div className="p-4">
@@ -55,7 +61,7 @@ export function OrderCard({ order, onStatusChange, onCancel }: OrderCardProps) {
           </div>
           <div className="flex items-center gap-1 text-xs text-gray-500 flex-shrink-0">
             <Clock size={12} />
-            <span className={elapsed >= 20 && !isFinished ? 'text-amber-400 font-medium' : ''}>
+            <span title="Tempo desde o recebimento">
               {elapsed}min
             </span>
           </div>
@@ -81,6 +87,8 @@ export function OrderCard({ order, onStatusChange, onCancel }: OrderCardProps) {
             <p className="text-xs text-gray-500">{PAYMENT_LABEL[order.paymentMethod]} · {formatTime(order.createdAt)}</p>
           </div>
         </div>
+
+        <OrderTimingLine order={order} now={now} className="mt-2" />
 
         {/* Items summary */}
         <div className="mt-3 flex flex-wrap gap-1">

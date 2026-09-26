@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Clock, AlertTriangle, CheckCircle, Loader2, RefreshCw, CalendarClock, Plus } from 'lucide-react'
+import { AlertTriangle, CheckCircle, Loader2, RefreshCw, CalendarClock, Plus, Timer } from 'lucide-react'
 import api from '@/lib/api'
 import { dataApi } from '@/hooks/useApi'
 import { Header } from '@/components/layout/Header'
@@ -11,6 +11,9 @@ import { ORDER_STATUS_LABEL } from '@/types'
 import { useBusiness } from '@/hooks/useBusiness'
 import { formatQuantity } from '@/lib/business'
 import type { Order, OrderStatus } from '@/types'
+import { formatDeadline, type Timing, type TimingState } from '@/lib/orderTiming'
+import { serverNow } from '@/lib/serverClock'
+import { TimingPill, TIMING_STYLE } from '@/components/orders/OrderTiming'
 import toast from 'react-hot-toast'
 
 const STATUS_COLOR: Record<string, string> = {
@@ -19,8 +22,18 @@ const STATUS_COLOR: Record<string, string> = {
 }
 
 const URGENT_COLOR = 'border-red-500/60 bg-red-500/8 animate-pulse2'
+const DUE_SOON_COLOR = 'border-amber-400/70 bg-amber-500/[0.07]'
 
-function KitchenCard({ order, onAdvance }: { order: Order & { elapsedMinutes: number; isUrgent: boolean }; onAdvance: (id: string, status: string) => Promise<void> }) {
+/** Pedido da fila com a situação de prazo calculada pelo servidor (ou pelo store da demo). */
+type QueueOrder = Order & {
+  elapsedMinutes: number
+  isUrgent: boolean
+  timingState: TimingState
+  minutesLeft: number
+  minutesLate: number
+}
+
+function KitchenCard({ order, onAdvance }: { order: QueueOrder; onAdvance: (id: string, status: string) => Promise<void> }) {
   const [loading, setLoading] = useState(false)
 
   const nextStatus: Record<OrderStatus, string | null> = {
@@ -32,9 +45,12 @@ function KitchenCard({ order, onAdvance }: { order: Order & { elapsedMinutes: nu
     CANCELLED: null,
   }
   const next = nextStatus[order.status]
-  const dueMinutes = order.scheduledFor
-    ? Math.round((new Date(order.scheduledFor).getTime() - Date.now()) / 60000)
-    : null
+  const timing: Timing = {
+    deadline: new Date(order.estimatedReadyAt ?? order.createdAt),
+    state: order.timingState,
+    minutesLeft: order.minutesLeft,
+    minutesLate: order.minutesLate,
+  }
 
   const nextLabel: Record<string, string> = {
     PREPARING: 'Iniciar Preparo',
@@ -51,7 +67,7 @@ function KitchenCard({ order, onAdvance }: { order: Order & { elapsedMinutes: nu
   return (
     <div className={cn(
       'border rounded-2xl flex flex-col transition-all duration-300',
-      order.isUrgent ? URGENT_COLOR : (STATUS_COLOR[order.status] || 'border-card-border bg-card'),
+      order.isUrgent ? URGENT_COLOR : order.timingState === 'due_soon' ? DUE_SOON_COLOR : (STATUS_COLOR[order.status] || 'border-card-border bg-card'),
     )}>
       {/* Card Header */}
       <div className="p-4 border-b border-white/5">
@@ -60,30 +76,7 @@ function KitchenCard({ order, onAdvance }: { order: Order & { elapsedMinutes: nu
             <span className="text-2xl font-bold text-white">#{order.orderNumber}</span>
             {order.isUrgent && <AlertTriangle size={16} className="text-red-400" />}
           </div>
-          {dueMinutes !== null ? (
-            // Encomenda: tempo até a retirada/entrega
-            <div className={cn(
-              'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-bold',
-              order.isUrgent ? 'bg-red-500/20 text-red-400' : 'bg-violet-500/20 text-violet-300',
-            )}>
-              <CalendarClock size={13} />
-              {dueMinutes >= 0
-                ? `em ${dueMinutes >= 60
-                    ? `${Math.floor(dueMinutes / 60)}h${dueMinutes % 60 && dueMinutes < 24 * 60 ? String(dueMinutes % 60).padStart(2, '0') : ''}`
-                    : `${dueMinutes}min`}`
-                : `${-dueMinutes}min atraso`}
-            </div>
-          ) : (
-            <div className={cn(
-              'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-bold',
-              order.elapsedMinutes >= 25 ? 'bg-red-500/20 text-red-400' :
-              order.elapsedMinutes >= 15 ? 'bg-amber-500/20 text-amber-400' :
-              'bg-emerald-500/20 text-emerald-400',
-            )}>
-              <Clock size={13} />
-              {order.elapsedMinutes}min
-            </div>
-          )}
+          <TimingPill timing={timing} className="text-sm px-2.5 py-1" />
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <ChannelBadge channel={order.channel} />
@@ -143,8 +136,8 @@ function KitchenCard({ order, onAdvance }: { order: Order & { elapsedMinutes: nu
       {/* Footer */}
       <div className="p-4 border-t border-white/5">
         <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
-          <span>Recebido {formatTime(order.createdAt)}</span>
-          {order.prepStartedAt && <span>Preparo {formatTime(order.prepStartedAt)}</span>}
+          <span>Recebido {formatTime(order.createdAt)}{order.prepStartedAt && ` · Preparo ${formatTime(order.prepStartedAt)}`}</span>
+          <span className={cn('font-medium', TIMING_STYLE[timing.state].text)}>Previsto {formatDeadline(timing.deadline, serverNow())}</span>
         </div>
         {next && (
           <button
@@ -170,7 +163,7 @@ function KitchenCard({ order, onAdvance }: { order: Order & { elapsedMinutes: nu
 
 export default function KitchenPage() {
   const business = useBusiness()
-  const [orders, setOrders]         = useState<(Order & { elapsedMinutes: number; isUrgent: boolean })[]>([])
+  const [orders, setOrders]         = useState<QueueOrder[]>([])
   const [loading, setLoading]       = useState(true)
   const [lastUpdate, setLastUpdate] = useState(new Date())
 
@@ -203,6 +196,7 @@ export default function KitchenPage() {
   const received  = orders.filter(o => o.status === 'RECEIVED')
   const preparing = orders.filter(o => o.status === 'PREPARING')
   const urgent    = orders.filter(o => o.isUrgent)
+  const dueSoon   = orders.filter(o => !o.isUrgent && o.timingState === 'due_soon')
 
   return (
     <div className="animate-fade-in">
@@ -225,9 +219,16 @@ export default function KitchenPage() {
         {urgent.length > 0 && (
           <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 border border-red-500/20 rounded-xl text-sm">
             <AlertTriangle size={14} className="text-red-400" />
-            <span className="text-red-300 font-medium">{urgent.length} urgente{urgent.length !== 1 ? 's' : ''}</span>
+            <span className="text-red-300 font-medium">{urgent.length} atrasado{urgent.length !== 1 ? 's' : ''}</span>
           </div>
         )}
+        {dueSoon.length > 0 && (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-400/30 rounded-xl text-sm">
+            <Timer size={14} className="text-amber-300" />
+            <span className="text-amber-200 font-medium">{dueSoon.length} perto do prazo</span>
+          </div>
+        )}
+        <span className="text-xs text-gray-500">Ordem: previsão de pronto mais próxima</span>
         <div className="ml-auto">
           <button
             onClick={load}

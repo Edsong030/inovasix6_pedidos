@@ -206,8 +206,9 @@ async function main() {
         subtotal: 110.80,
         discount: 0,
         total: 110.80,
-        createdAt: minutesAgo(15),
-        prepStartedAt: minutesAgo(12),
+        // Passou da previsão (36 min > 30 min): exemplo de pedido atrasado
+        createdAt: minutesAgo(36),
+        prepStartedAt: minutesAgo(30),
         items: {
           create: [
             { productId: getProduct('Filé ao Molho Madeira').id, productName: 'Filé ao Molho Madeira', quantity: 1, unitPrice: 58.90, totalPrice: 58.90 },
@@ -316,7 +317,9 @@ async function main() {
     ];
 
     for (const orderData of ordersData) {
-      await prisma.order.create({ data: orderData as any });
+      // Previsão de pronto: criação + tempo médio do restaurante (mesma regra da API)
+      const estimatedReadyAt = new Date(orderData.createdAt.getTime() + restaurant.avgPrepMinutes * 60000);
+      await prisma.order.create({ data: { ...orderData, estimatedReadyAt } as any });
     }
 
     // Atualiza status das mesas com pedidos ativos

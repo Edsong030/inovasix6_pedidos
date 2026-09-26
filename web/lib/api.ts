@@ -1,5 +1,6 @@
 import axios from 'axios'
 import Cookies from 'js-cookie'
+import { syncServerClock } from '@/lib/serverClock'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 
@@ -17,7 +18,11 @@ api.interceptors.request.use((config) => {
 
 // Redireciona para login em 401
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    // Alinha as contagens de prazo ao relógio do servidor
+    syncServerClock(res.headers?.date)
+    return res
+  },
   (err) => {
     if (err.response?.status === 401 && typeof window !== 'undefined') {
       Cookies.remove('token')

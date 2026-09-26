@@ -172,6 +172,8 @@ export interface Order {
   /** Encomenda com data/hora de retirada ou entrega */
   isPreorder?: boolean
   scheduledFor?: string | null
+  /** Previsão de pronto, gravada pelo servidor (ou pelo store da demo) ao criar o pedido */
+  estimatedReadyAt?: string | null
   /** Identificador no canal de origem (iFood, WhatsApp) — integração futura */
   externalRef?: string | null
   elapsedMinutes?: number
