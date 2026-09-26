@@ -1,18 +1,62 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, UtensilsCrossed, Sandwich, CakeSlice } from 'lucide-react'
 import { AuthProvider, useAuth } from '@/hooks/useAuth'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { InovasixLogo } from '@/components/brand/InovasixLogo'
+import { IS_DEMO, getDemoBusinessType, saveDemoBusinessType } from '@/lib/demo'
+import { BUSINESS_TYPES, getBusinessProfile } from '@/lib/business'
+import { cn } from '@/lib/utils'
+import type { BusinessType } from '@/types'
+
+const DEMO_ICON: Record<BusinessType, React.ElementType> = {
+  RESTAURANT:    UtensilsCrossed,
+  SNACK_BAR:     Sandwich,
+  CONFECTIONERY: CakeSlice,
+}
+
+/** Demo: escolha entre Restaurante, Lanchonete e Confeitaria (tudo local, sem banco). */
+function DemoBusinessPicker() {
+  const [selected, setSelected] = useState<BusinessType>('RESTAURANT')
+  useEffect(() => { setSelected(getDemoBusinessType()) }, [])
+
+  return (
+    <fieldset className="mb-6">
+      <legend className="text-sm font-medium text-gray-300 mb-2">Escolha a demonstração</legend>
+      <div className="grid grid-cols-3 gap-2">
+        {BUSINESS_TYPES.map(t => {
+          const Icon = DEMO_ICON[t]
+          const active = selected === t
+          return (
+            <button
+              key={t}
+              type="button"
+              aria-pressed={active}
+              onClick={() => { saveDemoBusinessType(t); setSelected(t) }}
+              className={cn(
+                'flex flex-col items-center gap-1.5 rounded-xl border px-2 py-3 text-xs font-medium transition-all',
+                active ? 'border-brand-500/60 bg-brand-600/20 text-white' : 'border-card-border text-gray-400 hover:text-white hover:border-brand-500/30',
+              )}
+            >
+              <Icon size={20} className={active ? 'text-brand-300' : ''} />
+              {getBusinessProfile(t).label}
+            </button>
+          )
+        })}
+      </div>
+      <p className="mt-2 text-xs text-gray-500">{getBusinessProfile(selected).tagline}. Dá para trocar depois pelo menu lateral.</p>
+    </fieldset>
+  )
+}
 
 const schema = z.object({
   email:          z.string().email('E-mail inválido'),
   password:       z.string().min(1, 'Senha obrigatória'),
-  restaurantSlug: z.string().min(1, 'Slug do restaurante obrigatório'),
+  restaurantSlug: z.string().min(1, 'Informe o estabelecimento'),
 })
 type FormData = z.infer<typeof schema>
 
@@ -50,13 +94,15 @@ function LoginForm() {
         <div className="card p-8">
           <h2 className="text-xl font-semibold text-white mb-6">Entrar na plataforma</h2>
 
+          {IS_DEMO && <DemoBusinessPicker />}
+
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">Restaurante</label>
+              <label className="block text-sm font-medium text-gray-300 mb-1.5">Estabelecimento</label>
               <input
                 {...register('restaurantSlug')}
                 className="input"
-                placeholder="slug-do-restaurante"
+                placeholder="slug-do-estabelecimento"
               />
               {errors.restaurantSlug && (
                 <p className="text-red-400 text-xs mt-1">{errors.restaurantSlug.message}</p>
@@ -111,15 +157,17 @@ function LoginForm() {
             </button>
           </form>
 
-          {/* Credenciais de demonstração */}
-          <div className="mt-6 p-4 bg-surface-50 rounded-xl border border-card-border">
-            <p className="text-xs font-medium text-gray-400 mb-2">Credenciais de demonstração:</p>
-            <div className="space-y-1 text-xs text-gray-500">
-              <p><span className="text-brand-400">Admin:</span> admin@inovasix.com / admin123</p>
-              <p><span className="text-brand-400">Gerente:</span> gerente@inovasix.com / gerente123</p>
-              <p><span className="text-brand-400">Cozinha:</span> cozinha@inovasix.com / cozinha123</p>
+          {/* Credenciais de demonstração — só no modo demo, nunca no sistema real */}
+          {IS_DEMO && (
+            <div className="mt-6 p-4 bg-surface-50 rounded-xl border border-card-border">
+              <p className="text-xs font-medium text-gray-400 mb-2">Credenciais de demonstração:</p>
+              <div className="space-y-1 text-xs text-gray-500">
+                <p><span className="text-brand-400">Admin:</span> admin@inovasix.com / admin123</p>
+                <p><span className="text-brand-400">Gerente:</span> gerente@inovasix.com / gerente123</p>
+                <p><span className="text-brand-400">Cozinha/Produção:</span> cozinha@inovasix.com / cozinha123</p>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Rodapé da tela de login */}

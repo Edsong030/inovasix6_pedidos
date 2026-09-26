@@ -6,13 +6,14 @@ import {
   ShoppingBag, ChefHat, DollarSign, Clock, Plus, FileText, ChevronRight, CalendarDays,
   ChartColumn, ChartLine, ClipboardList, CircleCheck, Bike, PackageCheck, CircleX,
   TriangleAlert, CircleAlert, Store, UtensilsCrossed, MessageCircle, Timer, Sparkles,
-  ArrowUpRight, ArrowDownRight, Minus,
+  ArrowUpRight, ArrowDownRight, Minus, CakeSlice, CalendarClock,
 } from 'lucide-react'
 import {
   BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
 import { dataApi } from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
+import { useBusiness } from '@/hooks/useBusiness'
 import { Header } from '@/components/layout/Header'
 import { StatusBadge } from '@/components/ui/Badge'
 import { PageLoader } from '@/components/ui/LoadingSpinner'
@@ -167,6 +168,8 @@ const ROLES_ORDERS:    UserRole[] = ['ADMIN', 'MANAGER', 'ATTENDANT', 'DELIVERY'
 
 export default function DashboardPage() {
   const { user } = useAuth()
+  const business = useBusiness()
+  const KitchenIcon = business.type === 'CONFECTIONERY' ? CakeSlice : ChefHat
   const [today,     setToday]     = useState<Order[]>([])
   const [yesterday, setYesterday] = useState<Order[]>([])
   const [loading,   setLoading]   = useState(true)
@@ -215,6 +218,8 @@ export default function DashboardPage() {
   // ─── Espera ────────────────────────────────────────────────────────────────
   const waiting = today
     .filter(o => WAITING_STATUSES.includes(o.status))
+    // Encomenda com retirada/entrega daqui a mais de 1h ainda não está atrasada
+    .filter(o => !o.scheduledFor || new Date(o.scheduledFor).getTime() - now <= 60 * 60000)
     .map(o => ({ order: o, minutes: minutesSince(o.createdAt, now) }))
     .sort((a, b) => b.minutes - a.minutes)
   const late     = waiting.filter(w => w.minutes >= WAIT_ALERT_MIN)
@@ -278,7 +283,7 @@ export default function DashboardPage() {
           )}
           {can(ROLES_KITCHEN) && (
             <Link href="/kitchen" className={cn(PANEL, 'flex items-center justify-center gap-2.5 px-4 py-3.5 text-sm font-semibold text-white hover:border-brand-400/40 transition-colors')}>
-              <ChefHat size={18} className="text-brand-300" /> Ver cozinha
+              <KitchenIcon size={18} className="text-brand-300" /> Ver {business.kitchenLabel.toLowerCase()}
             </Link>
           )}
           {can(ROLES_ORDERS) && (
@@ -325,7 +330,7 @@ export default function DashboardPage() {
           icon={<ChefHat size={20} className="text-amber-300" />}
           iconClass="bg-amber-500/15"
           t={null}
-          hint={late.length ? `${late.length} aguardando há +${WAIT_ALERT_MIN} min` : 'na cozinha agora'}
+          hint={late.length ? `${late.length} aguardando há +${WAIT_ALERT_MIN} min` : `${business.inKitchen} agora`}
         />
         <KpiCard
           label="Faturamento"
@@ -480,8 +485,13 @@ export default function DashboardPage() {
                         <td className="py-3 px-2"><OriginBadge channel={o.channel} /></td>
                         <td className="py-3 px-2 whitespace-nowrap">
                           <p className="text-gray-200 tabular-nums">{formatTime(o.createdAt)}</p>
+                          {o.scheduledFor && (
+                            <p className="text-xs text-violet-300 flex items-center gap-1" title="Retirada/entrega da encomenda">
+                              <CalendarClock size={11} /> {new Date(o.scheduledFor).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          )}
                           {active && (
-                            <p className={cn('text-xs inline-flex items-center gap-1', isLate ? 'text-amber-300' : 'text-gray-500')}>
+                            <p className={cn('text-xs flex items-center gap-1', isLate ? 'text-amber-300' : 'text-gray-500')}>
                               <Timer size={11} /> há {minutes} min
                             </p>
                           )}
@@ -526,7 +536,7 @@ export default function DashboardPage() {
             </div>
             {can(ROLES_KITCHEN) && (
               <Link href="/kitchen" className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-amber-400 hover:bg-amber-300 px-4 py-2.5 text-sm font-semibold text-gray-900 transition-colors">
-                Ver na cozinha <ChevronRight size={16} />
+                Ver {business.inKitchen} <ChevronRight size={16} />
               </Link>
             )}
           </div>
@@ -539,7 +549,7 @@ export default function DashboardPage() {
             <p className="text-xs text-gray-500 mt-1 max-w-[16rem]">
               {waiting.length
                 ? `${waiting.length} ${waiting.length === 1 ? 'pedido' : 'pedidos'} na fila, todos dentro de ${WAIT_ALERT_MIN} min.`
-                : 'Nenhum pedido aguardando na cozinha.'}
+                : `Nenhum pedido aguardando ${business.inKitchen}.`}
             </p>
           </div>
         )}

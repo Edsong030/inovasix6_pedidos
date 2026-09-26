@@ -2,7 +2,13 @@
 
 export type UserRole = 'ADMIN' | 'MANAGER' | 'ATTENDANT' | 'KITCHEN' | 'DELIVERY'
 
-export type OrderChannel = 'DELIVERY' | 'DINE_IN' | 'COUNTER' | 'TAKEOUT'
+export type BusinessType = 'RESTAURANT' | 'SNACK_BAR' | 'CONFECTIONERY'
+
+/** Unidade de venda do produto: por unidade, por quilo ou por cento. */
+export type SaleUnit = 'UNIT' | 'KG' | 'HUNDRED'
+
+/** IFOOD e WHATSAPP: origens preparadas para integração futura. */
+export type OrderChannel = 'DELIVERY' | 'DINE_IN' | 'COUNTER' | 'TAKEOUT' | 'IFOOD' | 'WHATSAPP'
 
 export type OrderStatus =
   | 'RECEIVED'
@@ -23,6 +29,20 @@ export const ORDER_CHANNEL_LABEL: Record<OrderChannel, string> = {
   DINE_IN:   'Salão',
   COUNTER:   'Balcão',
   TAKEOUT:   'Retirada',
+  IFOOD:     'iFood',
+  WHATSAPP:  'WhatsApp',
+}
+
+export const BUSINESS_TYPE_LABEL: Record<BusinessType, string> = {
+  RESTAURANT:    'Restaurante',
+  SNACK_BAR:     'Lanchonete',
+  CONFECTIONERY: 'Confeitaria',
+}
+
+export const SALE_UNIT_LABEL: Record<SaleUnit, string> = {
+  UNIT:    'Unidade',
+  KG:      'Quilo (kg)',
+  HUNDRED: 'Cento',
 }
 
 export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
@@ -85,6 +105,22 @@ export interface Product {
   videoUrl?: string | null
   available: boolean
   category?: { id: string; name: string }
+  /** Unidade de venda (padrão: UNIT) */
+  saleUnit?: SaleUnit
+  /** Feito sob encomenda: exige data/hora de retirada ou entrega */
+  madeToOrder?: boolean
+  /** Antecedência mínima da encomenda, em horas */
+  minLeadTimeHours?: number | null
+  /** Adicionais pagos (ex.: bacon extra, molho extra) */
+  addons?: ProductAddon[] | null
+  /** Observações rápidas sugeridas (ex.: sem cebola, ponto da carne) */
+  observationOptions?: string[]
+}
+
+export interface ProductAddon {
+  id: string
+  name: string
+  price: number
 }
 
 export interface Table {
@@ -99,10 +135,13 @@ export interface OrderItem {
   id: string
   productId: string
   productName: string
+  /** Na unidade de venda (fracionada para kg). A API pode enviar como string decimal. */
   quantity: number
+  unit?: SaleUnit
   unitPrice: number
   totalPrice: number
   notes?: string
+  addons?: ProductAddon[] | null
   product?: { name: string; imageUrl?: string }
 }
 
@@ -129,6 +168,11 @@ export interface Order {
   readyAt?: string | null
   deliveredAt?: string | null
   cancelledAt?: string | null
+  /** Encomenda com data/hora de retirada ou entrega */
+  isPreorder?: boolean
+  scheduledFor?: string | null
+  /** Identificador no canal de origem (iFood, WhatsApp) — integração futura */
+  externalRef?: string | null
   elapsedMinutes?: number
   isUrgent?: boolean
 }
@@ -166,6 +210,8 @@ export interface AuthUser {
   role: UserRole
   restaurantId: string
   restaurantName: string
+  /** Tipo de negócio do estabelecimento (padrão: RESTAURANT) */
+  businessType?: BusinessType
   active?: boolean
 }
 

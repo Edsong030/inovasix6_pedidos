@@ -21,10 +21,16 @@ export class KitchenService {
     });
 
     const now = Date.now();
-    return orders.map((o) => ({
-      ...o,
-      elapsedMinutes: Math.floor((now - o.createdAt.getTime()) / 60000),
-      isUrgent: Math.floor((now - o.createdAt.getTime()) / 60000) >= 20,
-    }));
+    // Encomendas seguem a data de retirada/entrega: urgentes a menos de 1h do horário
+    const dueAt = (o: (typeof orders)[number]) => (o.scheduledFor ?? o.createdAt).getTime();
+    return orders
+      .map((o) => {
+        const elapsedMinutes = Math.floor((now - o.createdAt.getTime()) / 60000);
+        const isUrgent = o.scheduledFor
+          ? o.scheduledFor.getTime() - now <= 60 * 60000
+          : elapsedMinutes >= 20;
+        return { ...o, elapsedMinutes, isUrgent };
+      })
+      .sort((a, b) => dueAt(a) - dueAt(b));
   }
 }

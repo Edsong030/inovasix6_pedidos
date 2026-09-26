@@ -3,7 +3,9 @@
  * Nenhuma chamada de rede é feita — tudo vive em memória no browser.
  */
 
-import type { AuthUser, Category, Product, Table, Order, DashboardData, SalesReport } from '@/types'
+import type { AuthUser, BusinessType, Category, Product, Table, Order, DashboardData, SalesReport } from '@/types'
+import { SNACK_BAR_DEMO, CONFECTIONERY_DEMO, type DemoBusinessData } from './businesses'
+import { getDemoBusinessType } from './businessType'
 
 // ─── Usuário demo ──────────────────────────────────────────────────────────────
 export const DEMO_USER: AuthUser = {
@@ -232,38 +234,72 @@ const CUSTOMER_NAMES = [
   'Gabriela Reis', 'Henrique Dias', 'Isabela Pinto', 'Lucas Martins', 'Mariana Lopes', 'Rafael Gomes',
 ]
 
-let historyCache: Order[] | null = null
+// ─── Conjuntos de dados por tipo de negócio ────────────────────────────────────
+export const RESTAURANT_DEMO: DemoBusinessData = {
+  restaurantName: 'Restaurante Demo',
+  categories: DEMO_CATEGORIES,
+  products: DEMO_PRODUCTS,
+  tables: DEMO_TABLES,
+  orders: DEMO_ORDERS,
+  history: {
+    seedPrefix: '',
+    channels: [['DINE_IN', 40], ['DELIVERY', 30], ['COUNTER', 15], ['TAKEOUT', 15]],
+    baseOrders: 14, variation: 9,
+    drinkCategoryIds: ['cat-5'],
+  },
+}
 
-export function getDemoHistoryOrders(): Order[] {
-  if (historyCache) return historyCache
+const DEMO_DATASETS: Record<BusinessType, DemoBusinessData> = {
+  RESTAURANT:    RESTAURANT_DEMO,
+  SNACK_BAR:     SNACK_BAR_DEMO,
+  CONFECTIONERY: CONFECTIONERY_DEMO,
+}
 
+export function getDemoDataset(type: BusinessType = getDemoBusinessType()): DemoBusinessData {
+  return DEMO_DATASETS[type] ?? RESTAURANT_DEMO
+}
+
+const historyCache = new Map<BusinessType, Order[]>()
+
+/** Histórico dos dias anteriores do tipo de negócio (padrão: o escolhido na demo). */
+export function getDemoHistoryOrders(type: BusinessType = getDemoBusinessType()): Order[] {
+  const cached = historyCache.get(type)
+  if (cached) return cached
+
+  const data = getDemoDataset(type)
+  const cfg  = data.history
+  const [[lunchStart, lunchLen], [dinnerStart, dinnerLen]] = cfg.hours ?? [[11, 3], [18, 5]]
   const out: Order[] = []
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  const available  = DEMO_PRODUCTS.filter(p => p.available)
-  const drinks     = available.filter(p => p.categoryId === 'cat-5')
-  const dishes     = available.filter(p => p.categoryId !== 'cat-5')
-  const dineTables = DEMO_TABLES.filter(t => /^\d+$/.test(t.number))
+  const available  = data.products.filter(p => p.available)
+  const drinks     = available.filter(p => cfg.drinkCategoryIds.includes(p.categoryId))
+  const dishes     = available.filter(p => !cfg.drinkCategoryIds.includes(p.categoryId))
+  const dineTables = data.tables.filter(t => /^\d+$/.test(t.number))
 
   for (let back = HISTORY_DAYS; back >= 1; back--) {
     const day = new Date(today)
     day.setDate(day.getDate() - back)
     const key = toLocalYMD(day)
-    const rnd = seededRandom(key)
+    const rnd = seededRandom(cfg.seedPrefix ? `${cfg.seedPrefix}-${key}` : key)
 
     const dow     = day.getDay()
     const weekend = dow === 5 || dow === 6 ? 1.4 : dow === 0 ? 1.25 : 1
     const trend   = 1 + ((HISTORY_DAYS - back) / HISTORY_DAYS) * 0.2
-    const count   = Math.round((14 + rnd() * 9) * weekend * trend)
+    const count   = Math.round((cfg.baseOrders + rnd() * cfg.variation) * weekend * trend)
 
     for (let i = 0; i < count; i++) {
-      const channel = pickWeighted<Order['channel']>(rnd, [['DINE_IN', 40], ['DELIVERY', 30], ['COUNTER', 15], ['TAKEOUT', 15]])
+      let channel = pickWeighted<Order['channel']>(rnd, cfg.channels)
       const payment = pickWeighted<Order['paymentMethod']>(rnd, [['PIX', 46], ['CARD', 40], ['CASH', 14]])
 
       const chosen = new Map<string, number>()
       const nDishes = 1 + Math.floor(rnd() * 2.4)
       for (let k = 0; k < nDishes; k++) {
-        const p = dishes[Math.floor(rnd() * dishes.length)]
+        let p = dishes[Math.floor(rnd() * dishes.length)]
+        // Encomendas (kits, bolos de festa) são menos frequentes que a vitrine
+        for (let tries = 0; p.madeToOrder && tries < 3 && rnd() > 0.2; tries++) {
+          p = dishes[Math.floor(rnd() * dishes.length)]
+        }
         chosen.set(p.id, (chosen.get(p.id) ?? 0) + 1)
       }
       if (rnd() < 0.75) {
@@ -271,23 +307,30 @@ export function getDemoHistoryOrders(): Order[] {
         chosen.set(d.id, (chosen.get(d.id) ?? 0) + 1 + Math.floor(rnd() * 2))
       }
 
+      let leadHours = 0
       const items = Array.from(chosen.entries()).map(([pid, qty], idx) => {
-        const p = DEMO_PRODUCTS.find(x => x.id === pid)!
+        const p = data.products.find(x => x.id === pid)!
+        // Quilo e cento têm quantidades próprias (o Restaurante só vende por unidade)
+        if (p.saleUnit === 'KG') qty = [1, 1.5, 2, 2.5, 3][Math.floor(rnd() * 5)]
+        else if (p.saleUnit === 'HUNDRED') qty = 1 + Math.floor(rnd() * 2)
+        if (p.madeToOrder) leadHours = Math.max(leadHours, p.minLeadTimeHours ?? 24, 24)
         return {
           id: `h-${key}-${i}-${idx}`, productId: p.id, productName: p.name,
-          quantity: qty, unitPrice: p.price, totalPrice: Math.round(p.price * qty * 100) / 100,
+          quantity: qty, unit: p.saleUnit, unitPrice: p.price, totalPrice: Math.round(p.price * qty * 100) / 100,
         }
       })
       const subtotal = Math.round(items.reduce((s, it) => s + it.totalPrice, 0) * 100) / 100
       const discount = rnd() < 0.08 ? 5 : 0
 
-      // Horário entre 11h e 23h, concentrado no almoço e no jantar
+      // Horário concentrado em dois picos do dia (almoço/jantar ou manhã/tarde)
       const created = new Date(day)
-      const hour = rnd() < 0.45 ? 11 + rnd() * 3 : 18 + rnd() * 5
+      const hour = rnd() < 0.45 ? lunchStart + rnd() * lunchLen : dinnerStart + rnd() * dinnerLen
       created.setMinutes(Math.floor(hour * 60))
       const done = new Date(created.getTime() + (25 + rnd() * 30) * 60000)
       const cancelled = rnd() < 0.04
+      if (channel === 'DINE_IN' && dineTables.length === 0) channel = 'COUNTER'
       const table = channel === 'DINE_IN' ? dineTables[Math.floor(rnd() * dineTables.length)] : null
+      const scheduledFor = leadHours ? new Date(created.getTime() + leadHours * 3_600_000).toISOString() : null
 
       out.push({
         id: `h-${key}-${i}`, orderNumber: i + 1, channel,
@@ -303,13 +346,15 @@ export function getDemoHistoryOrders(): Order[] {
         readyAt:       cancelled ? null : done.toISOString(),
         deliveredAt:   cancelled ? null : done.toISOString(),
         cancelledAt:   cancelled ? done.toISOString() : null,
+        ...(scheduledFor ? { isPreorder: true, scheduledFor } : {}),
       })
     }
   }
 
-  historyCache = out
+  historyCache.set(type, out)
   return out
 }
+
 
 // ─── Relatório de vendas demo ──────────────────────────────────────────────────
 /**

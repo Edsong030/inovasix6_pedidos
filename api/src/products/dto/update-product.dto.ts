@@ -4,13 +4,14 @@ import {
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type, Transform } from 'class-transformer';
+import { ProductSaleOptionsDto } from './product-options.dto';
 
 /**
  * DTO de atualização parcial de produto.
  * Todos os campos são opcionais.
  * imageUrl e videoUrl aceitam null para limpar o valor no banco.
  */
-export class UpdateProductDto {
+export class UpdateProductDto extends ProductSaleOptionsDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

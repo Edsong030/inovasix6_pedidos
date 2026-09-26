@@ -46,7 +46,6 @@ api/.agents/
 api/.claude/
 api/.cursor/
 api/.devin/
-api/prisma/migrations/
 
 # Web
 web/.next/

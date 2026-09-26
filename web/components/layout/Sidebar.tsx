@@ -4,12 +4,14 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, ShoppingBag, ChefHat, Table2,
-  UtensilsCrossed, BarChart3, Users, LogOut,
+  UtensilsCrossed, BarChart3, Users, LogOut, CakeSlice,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { InovasixLogo } from '@/components/brand/InovasixLogo'
-import type { UserRole } from '@/types'
+import { IS_DEMO } from '@/lib/demo'
+import { BUSINESS_TYPES, getBusinessProfile } from '@/lib/business'
+import type { BusinessType, UserRole } from '@/types'
 
 interface NavItem {
   href: string
@@ -30,14 +32,21 @@ const NAV: NavItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname()
-  const { user, logout } = useAuth()
+  const { user, logout, setBusinessType } = useAuth()
+  const business = getBusinessProfile(user?.businessType)
 
   // Dashboard e Relatórios: sidebar levemente translúcida sobre o fundo tecnológico
   const overTechBackground = ['/dashboard', '/reports'].some(p => pathname.startsWith(p))
 
-  const visible = NAV.filter(
-    (n) => !n.roles || (user && n.roles.includes(user.role)),
-  )
+  // Confeitaria: "Cozinha" vira "Produção"
+  const visible = NAV
+    .filter((n) => !n.roles || (user && n.roles.includes(user.role)))
+    .map((n) => n.href === '/kitchen'
+      ? { ...n, label: business.kitchenLabel, icon: business.type === 'CONFECTIONERY' ? <CakeSlice size={18} /> : n.icon }
+      : n)
+
+  // Demo: qualquer perfil troca a demonstração. Sistema real: apenas administrador.
+  const canChangeBusiness = !!user && (IS_DEMO || user.role === 'ADMIN')
 
   return (
     <aside
@@ -73,9 +82,26 @@ export function Sidebar() {
           style={{ borderBottom: '1px solid rgba(99, 102, 241, 0.12)' }}
         >
           <p className="text-xs uppercase tracking-wider" style={{ color: 'rgba(148, 163, 184, 0.7)' }}>
-            Restaurante
+            {business.label}
           </p>
           <p className="text-sm font-medium text-white truncate mt-0.5">{user.restaurantName}</p>
+          {canChangeBusiness && (
+            <label className="mt-2.5 block">
+              <span className="sr-only">Tipo de negócio</span>
+              <select
+                value={business.type}
+                onChange={(e) => setBusinessType(e.target.value as BusinessType)}
+                aria-label={IS_DEMO ? 'Trocar demonstração' : 'Tipo de negócio'}
+                className="w-full rounded-lg border px-2.5 py-1.5 text-xs font-medium text-gray-200 outline-none transition-colors focus:ring-2 focus:ring-brand-500 [color-scheme:dark]"
+                style={{ background: 'rgba(15, 22, 52, 0.9)', borderColor: 'rgba(96, 136, 255, 0.25)' }}
+              >
+                {BUSINESS_TYPES.map((t) => {
+                  const p = getBusinessProfile(t)
+                  return <option key={t} value={t}>{IS_DEMO ? p.demoName : p.label}</option>
+                })}
+              </select>
+            </label>
+          )}
         </div>
       )}
 

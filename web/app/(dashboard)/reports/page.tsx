@@ -17,6 +17,7 @@ import { formatCurrency, formatDate, cn } from '@/lib/utils'
 import { ORDER_CHANNEL_LABEL, ORDER_STATUS_LABEL, PAYMENT_LABEL } from '@/types'
 import type { SalesReport, Order, OrderChannel, OrderStatus, PaymentMethod } from '@/types'
 import { InovasixLogo } from '@/components/brand'
+import { useBusiness } from '@/hooks/useBusiness'
 import toast from 'react-hot-toast'
 
 // ─── Estilo ───────────────────────────────────────────────────────────────────
@@ -29,7 +30,9 @@ const PAYMENT_COLOR: Record<PaymentMethod, string> = {
   CARD: '#3d5eff',
   CASH: '#a78bfa',
 }
-const CHANNEL_ORDER: OrderChannel[] = ['DINE_IN', 'DELIVERY', 'COUNTER', 'TAKEOUT']
+const CHANNEL_ORDER: OrderChannel[] = ['DINE_IN', 'DELIVERY', 'COUNTER', 'TAKEOUT', 'IFOOD', 'WHATSAPP']
+/** Exibidos quando o período não tem pedidos; senão, mostra só os canais usados. */
+const BASE_CHANNELS: OrderChannel[] = ['DINE_IN', 'DELIVERY', 'COUNTER', 'TAKEOUT']
 
 const TOOLTIP_STYLE = {
   background: '#0e1428',
@@ -207,6 +210,7 @@ function PaymentTooltip({ active, payload }: { active?: boolean; payload?: Array
 
 // ─── Página ───────────────────────────────────────────────────────────────────
 export default function ReportsPage() {
+  const business = useBusiness()
   const [tab, setTab] = useState<'sales' | 'history'>('sales')
 
   // Período
@@ -315,6 +319,7 @@ export default function ReportsPage() {
 
   const channelTotal = CHANNEL_ORDER.reduce((s, k) => s + (report?.byChannel[k]?.count ?? 0), 0)
   const channelData = CHANNEL_ORDER
+    .filter(k => (channelTotal > 0 ? (report?.byChannel[k]?.count ?? 0) > 0 : BASE_CHANNELS.includes(k)))
     .map(k => {
       const v = report?.byChannel[k] ?? { count: 0, revenue: 0 }
       return { key: k, name: ORDER_CHANNEL_LABEL[k], count: v.count, revenue: v.revenue, pct: channelTotal > 0 ? (v.count / channelTotal) * 100 : 0 }
@@ -331,7 +336,7 @@ export default function ReportsPage() {
 
   return (
     <div className="animate-fade-in relative">
-      <Header title="Relatórios" subtitle="Acompanhe vendas, formas de pagamento e canais do seu restaurante" />
+      <Header title="Relatórios" subtitle={`Acompanhe vendas, formas de pagamento e canais ${business.ofYourBusiness}`} />
 
       {/* Abas */}
       <div className="flex flex-wrap gap-1 mb-5 p-1 rounded-xl w-fit border panel-tech print:hidden">

@@ -45,6 +45,7 @@ export class AuthService {
         role: user.role,
         restaurantId: user.restaurantId,
         restaurantName: restaurant.name,
+        businessType: restaurant.businessType,
       },
     };
   }

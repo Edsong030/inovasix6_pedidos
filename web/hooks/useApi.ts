@@ -6,7 +6,7 @@
 
 import { IS_DEMO, demoStore, buildDemoDashboard, buildDemoSalesReport, getDemoHistoryOrders, toLocalYMD } from '@/lib/demo'
 import api from '@/lib/api'
-import type { Order, OrderStatus, TableStatus } from '@/types'
+import type { BusinessType, Order, OrderStatus, TableStatus } from '@/types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function ok<T>(data: T) {
@@ -185,6 +185,12 @@ export const dataApi = {
 
   updateUser: (id: string, body: Record<string, unknown>) =>
     IS_DEMO ? ok({ id, ...body }) : api.patch(`/users/${id}`, body),
+
+  // Configurações do estabelecimento (tipo de negócio)
+  updateBusinessType: (businessType: BusinessType) =>
+    IS_DEMO
+      ? ok({ businessType })
+      : api.patch('/restaurants/settings', { businessType }),
 
   // Reports
   getSalesReport: (startDate: string, endDate: string) =>

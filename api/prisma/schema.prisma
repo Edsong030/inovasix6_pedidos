@@ -9,16 +9,24 @@ datasource db {
 
 // ─── Multiempresa ────────────────────────────────────────────────────────────
 
+/// Tipo de negócio: ajusta textos (ex.: Cozinha → Produção) e recursos de cardápio.
+enum BusinessType {
+  RESTAURANT
+  SNACK_BAR
+  CONFECTIONERY
+}
+
 model Restaurant {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  phone     String?
-  address   String?
-  logoUrl   String?
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String       @id @default(cuid())
+  name         String
+  slug         String       @unique
+  businessType BusinessType @default(RESTAURANT)
+  phone        String?
+  address      String?
+  logoUrl      String?
+  active       Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   users       User[]
   orders      Order[]
@@ -41,15 +49,15 @@ enum UserRole {
 }
 
 model User {
-  id           String     @id @default(cuid())
+  id           String   @id @default(cuid())
   restaurantId String
   name         String
   email        String
   password     String
-  role         UserRole   @default(ATTENDANT)
-  active       Boolean    @default(true)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  role         UserRole @default(ATTENDANT)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   restaurant Restaurant @relation(fields: [restaurantId], references: [id])
   orders     Order[]
@@ -76,22 +84,38 @@ model Category {
   @@map("categories")
 }
 
-model Product {
-  id           String   @id @default(cuid())
-  restaurantId String
-  categoryId   String
-  name         String
-  description  String?
-  price        Decimal  @db.Decimal(10, 2)
-  imageUrl     String?
-  videoUrl     String?
-  available    Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+/// Unidade de venda: preço por unidade, por quilo ou por cento.
+enum SaleUnit {
+  UNIT
+  KG
+  HUNDRED
+}
 
-  restaurant  Restaurant  @relation(fields: [restaurantId], references: [id])
-  category    Category    @relation(fields: [categoryId], references: [id])
-  orderItems  OrderItem[]
+model Product {
+  id                 String   @id @default(cuid())
+  restaurantId       String
+  categoryId         String
+  name               String
+  description        String?
+  price              Decimal  @db.Decimal(10, 2)
+  imageUrl           String?
+  videoUrl           String?
+  available          Boolean  @default(true)
+  saleUnit           SaleUnit @default(UNIT)
+  /// Produto feito sob encomenda (exige data de retirada/entrega)
+  madeToOrder        Boolean  @default(false)
+  /// Antecedência mínima para encomenda, em horas
+  minLeadTimeHours   Int?
+  /// Adicionais pagos: [{ id, name, price }]
+  addons             Json?
+  /// Observações rápidas sugeridas (ex.: "Sem cebola", "Ponto: mal passado")
+  observationOptions String[] @default([])
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  restaurant Restaurant  @relation(fields: [restaurantId], references: [id])
+  category   Category    @relation(fields: [categoryId], references: [id])
+  orderItems OrderItem[]
 
   @@map("products")
 }
@@ -127,6 +151,8 @@ enum OrderChannel {
   DINE_IN
   COUNTER
   TAKEOUT
+  IFOOD // preparado para integração futura
+  WHATSAPP // preparado para integração futura
 }
 
 enum OrderStatus {
@@ -145,27 +171,32 @@ enum PaymentMethod {
 }
 
 model Order {
-  id             String        @id @default(cuid())
-  restaurantId   String
-  userId         String
-  tableId        String?
-  orderNumber    Int
-  channel        OrderChannel
-  status         OrderStatus   @default(RECEIVED)
-  customerName   String?
-  customerPhone  String?
+  id              String        @id @default(cuid())
+  restaurantId    String
+  userId          String
+  tableId         String?
+  orderNumber     Int
+  channel         OrderChannel
+  status          OrderStatus   @default(RECEIVED)
+  customerName    String?
+  customerPhone   String?
   deliveryAddress String?
-  notes          String?
-  paymentMethod  PaymentMethod
-  subtotal       Decimal       @db.Decimal(10, 2)
-  discount       Decimal       @default(0) @db.Decimal(10, 2)
-  total          Decimal       @db.Decimal(10, 2)
-  prepStartedAt  DateTime?
-  readyAt        DateTime?
-  deliveredAt    DateTime?
-  cancelledAt    DateTime?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  notes           String?
+  paymentMethod   PaymentMethod
+  subtotal        Decimal       @db.Decimal(10, 2)
+  discount        Decimal       @default(0) @db.Decimal(10, 2)
+  total           Decimal       @db.Decimal(10, 2)
+  prepStartedAt   DateTime?
+  readyAt         DateTime?
+  deliveredAt     DateTime?
+  cancelledAt     DateTime?
+  /// Encomenda: data/hora combinada para retirada ou entrega
+  isPreorder      Boolean       @default(false)
+  scheduledFor    DateTime?
+  /// Identificador no canal de origem (iFood, WhatsApp...) — integração futura
+  externalRef     String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   restaurant Restaurant  @relation(fields: [restaurantId], references: [id])
   user       User        @relation(fields: [userId], references: [id])
@@ -176,14 +207,18 @@ model Order {
 }
 
 model OrderItem {
-  id          String  @id @default(cuid())
+  id          String   @id @default(cuid())
   orderId     String
   productId   String
   productName String
-  quantity    Int
-  unitPrice   Decimal @db.Decimal(10, 2)
-  totalPrice  Decimal @db.Decimal(10, 2)
+  /// Quantidade na unidade de venda (fracionada para quilo)
+  quantity    Decimal  @db.Decimal(10, 3)
+  unit        SaleUnit @default(UNIT)
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  totalPrice  Decimal  @db.Decimal(10, 2)
   notes       String?
+  /// Adicionais escolhidos: [{ id, name, price }]
+  addons      Json?
 
   order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])
@@ -207,15 +242,15 @@ enum AnotaEventStatus {
 }
 
 model AnotaAiEvent {
-  id            String           @id @default(cuid())
-  restaurantId  String
-  eventType     AnotaEventType
-  status        AnotaEventStatus @default(PENDING)
-  externalId    String
-  payload       Json
-  errorMessage  String?
-  processedAt   DateTime?
-  createdAt     DateTime         @default(now())
+  id           String           @id @default(cuid())
+  restaurantId String
+  eventType    AnotaEventType
+  status       AnotaEventStatus @default(PENDING)
+  externalId   String
+  payload      Json
+  errorMessage String?
+  processedAt  DateTime?
+  createdAt    DateTime         @default(now())
 
   restaurant Restaurant @relation(fields: [restaurantId], references: [id])
 

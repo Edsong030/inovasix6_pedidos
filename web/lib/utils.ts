@@ -42,6 +42,8 @@ export const CHANNEL_COLORS: Record<OrderChannel, string> = {
   DINE_IN:  'bg-sky-500/20 text-sky-300',
   COUNTER:  'bg-violet-500/20 text-violet-300',
   TAKEOUT:  'bg-teal-500/20 text-teal-300',
+  IFOOD:    'bg-red-500/20 text-red-300',
+  WHATSAPP: 'bg-emerald-500/20 text-emerald-300',
 }
 
 export const NEXT_STATUS: Record<OrderStatus, OrderStatus | null> = {

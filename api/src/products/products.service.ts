@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
@@ -25,7 +26,14 @@ export class ProductsService {
   }
 
   create(restaurantId: string, dto: CreateProductDto) {
-    return this.prisma.product.create({ data: { ...dto, restaurantId } });
+    const { addons, ...rest } = dto;
+    return this.prisma.product.create({
+      data: {
+        ...rest,
+        restaurantId,
+        addons: addons ? (addons as unknown as Prisma.InputJsonArray) : undefined,
+      },
+    });
   }
 
   async update(id: string, restaurantId: string, dto: UpdateProductDto) {

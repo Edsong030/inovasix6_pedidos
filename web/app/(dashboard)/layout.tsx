@@ -64,7 +64,8 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
 
         {/* Conteúdo acima da sobreposição */}
         <main className="flex-1 overflow-y-auto relative" style={{ zIndex: 1 }}>
-          <div className="p-6 max-w-[1400px] mx-auto">{children}</div>
+          {/* key: ao trocar o tipo de negócio a página é remontada e recarrega os dados */}
+          <div key={user.businessType ?? 'RESTAURANT'} className="p-6 max-w-[1400px] mx-auto">{children}</div>
         </main>
         <div className="relative" style={{ zIndex: 1 }}>
           <BrandFooter />

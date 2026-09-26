@@ -1,12 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { Clock, ChevronDown, ChevronUp, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { Clock, ChevronDown, ChevronUp, CheckCircle, XCircle, Loader2, CalendarClock } from 'lucide-react'
 import { StatusBadge, ChannelBadge } from '@/components/ui/Badge'
 import { formatCurrency, formatTime, elapsedMinutes, NEXT_STATUS, NEXT_STATUS_LABEL, cn } from '@/lib/utils'
 import { PAYMENT_LABEL } from '@/types'
 import { dataApi } from '@/hooks/useApi'
 import type { Order } from '@/types'
+import { formatQuantity } from '@/lib/business'
 
 interface OrderCardProps {
   order: Order
@@ -68,6 +69,12 @@ export function OrderCard({ order, onStatusChange, onCancel }: OrderCardProps) {
             {order.deliveryAddress && (
               <p className="text-xs text-gray-500 truncate max-w-[200px]">{order.deliveryAddress}</p>
             )}
+            {order.scheduledFor && (
+              <p className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-violet-300">
+                <CalendarClock size={12} />
+                Encomenda · {new Date(order.scheduledFor).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+              </p>
+            )}
           </div>
           <div className="text-right">
             <p className="text-base font-bold text-white">{formatCurrency(Number(order.total))}</p>
@@ -79,7 +86,7 @@ export function OrderCard({ order, onStatusChange, onCancel }: OrderCardProps) {
         <div className="mt-3 flex flex-wrap gap-1">
           {order.items.slice(0, 3).map((item) => (
             <span key={item.id} className="text-xs bg-surface-50 border border-card-border text-gray-300 px-2 py-0.5 rounded-full">
-              {item.quantity}× {item.productName}
+              {formatQuantity(item.quantity, item.unit)} {item.productName}
             </span>
           ))}
           {order.items.length > 3 && (
@@ -102,7 +109,10 @@ export function OrderCard({ order, onStatusChange, onCancel }: OrderCardProps) {
             {order.items.map((item) => (
               <div key={item.id} className="flex items-start justify-between text-sm gap-2">
                 <div>
-                  <span className="text-white">{item.quantity}× {item.productName}</span>
+                  <span className="text-white">{formatQuantity(item.quantity, item.unit)} {item.productName}</span>
+                  {!!item.addons?.length && (
+                    <p className="text-xs text-brand-300 mt-0.5">+ {item.addons.map(a => a.name).join(', ')}</p>
+                  )}
                   {item.notes && <p className="text-xs text-amber-400 mt-0.5">⚠ {item.notes}</p>}
                 </div>
                 <span className="text-gray-400 flex-shrink-0">{formatCurrency(Number(item.totalPrice))}</span>

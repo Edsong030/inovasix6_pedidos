@@ -3,5 +3,6 @@ export { demoStore } from './store'
 export {
   DEMO_USER, DEMO_CREDENTIALS,
   DEMO_CATEGORIES, DEMO_PRODUCTS, DEMO_TABLES, DEMO_ORDERS,
-  buildDemoDashboard, buildDemoSalesReport, getDemoHistoryOrders, toLocalYMD,
+  buildDemoDashboard, buildDemoSalesReport, getDemoHistoryOrders, getDemoDataset, toLocalYMD,
 } from './data'
+export { getDemoBusinessType, saveDemoBusinessType } from './businessType'

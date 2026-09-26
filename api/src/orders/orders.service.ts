@@ -62,17 +62,55 @@ export class OrdersService {
 
     const productMap = new Map(products.map((p) => [p.id, p]));
 
+    // Encomenda: data/hora obrigatória quando marcada ou quando há produto sob encomenda
+    const scheduledFor = dto.scheduledFor ? new Date(dto.scheduledFor) : null;
+    const hasMadeToOrder = products.some((p) => p.madeToOrder);
+    const isPreorder = !!dto.isPreorder || hasMadeToOrder;
+    if (isPreorder && !scheduledFor) {
+      throw new BadRequestException('Informe a data e hora de retirada/entrega da encomenda');
+    }
+    if (scheduledFor) {
+      const leadHours = Math.max(0, ...products.map((p) => p.minLeadTimeHours ?? 0));
+      const earliest = Date.now() + leadHours * 3_600_000;
+      if (scheduledFor.getTime() < earliest - 60_000) {
+        throw new BadRequestException(
+          leadHours > 0
+            ? `Esta encomenda precisa de pelo menos ${leadHours}h de antecedência`
+            : 'A data da encomenda precisa ser futura',
+        );
+      }
+    }
+
     const itemsData = dto.items.map((item) => {
       const product = productMap.get(item.productId)!;
-      const unitPrice = Number(product.price);
-      const totalPrice = unitPrice * item.quantity;
+
+      // Quilo aceita fração; unidade e cento, apenas inteiros
+      if (product.saleUnit !== 'KG' && !Number.isInteger(item.quantity)) {
+        throw new BadRequestException(`Quantidade de "${product.name}" deve ser um número inteiro`);
+      }
+
+      // Adicionais: preços sempre do cadastro, nunca do cliente
+      const catalog = Array.isArray(product.addons)
+        ? (product.addons as Array<{ id: string; name: string; price: number }>)
+        : [];
+      const addons = (item.addonIds ?? []).map((addonId) => {
+        const addon = catalog.find((a) => a.id === addonId);
+        if (!addon) throw new BadRequestException(`Adicional inválido para "${product.name}"`);
+        return { id: addon.id, name: addon.name, price: Number(addon.price) };
+      });
+      const addonsPrice = addons.reduce((s, a) => s + a.price, 0);
+
+      const unitPrice = Number(product.price) + addonsPrice;
+      const totalPrice = Math.round(unitPrice * item.quantity * 100) / 100;
       return {
         productId: item.productId,
         productName: product.name,
         quantity: item.quantity,
+        unit: product.saleUnit,
         unitPrice,
         totalPrice,
         notes: item.notes,
+        addons: addons.length ? addons : undefined,
       };
     });
 
@@ -100,6 +138,8 @@ export class OrdersService {
         customerPhone: dto.customerPhone,
         deliveryAddress: dto.deliveryAddress,
         notes: dto.notes,
+        isPreorder,
+        scheduledFor,
         subtotal,
         discount,
         total,

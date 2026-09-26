@@ -4,17 +4,29 @@
  * Sobrevive a re-renders mas não a reloads (comportamento esperado para demo).
  */
 
-import {
-  DEMO_CATEGORIES, DEMO_PRODUCTS, DEMO_TABLES, DEMO_ORDERS,
-} from './data'
-import type { Category, Product, Table, Order, OrderStatus, TableStatus } from '@/types'
+import { getDemoDataset } from './data'
+import { getDemoBusinessType } from './businessType'
+import type { BusinessType, Category, Product, Table, Order, OrderStatus, TableStatus } from '@/types'
 
 // ─── Estado mutável em módulo (singleton por aba do browser) ──────────────────
-let categories: Category[] = structuredClone(DEMO_CATEGORIES)
-let products:   Product[]  = structuredClone(DEMO_PRODUCTS)
-let tables:     Table[]    = structuredClone(DEMO_TABLES)
-let orders:     Order[]    = structuredClone(DEMO_ORDERS)
-let nextOrderNumber        = DEMO_ORDERS.length + 1
+// Carregado a partir do tipo de negócio escolhido na demo
+let businessType: BusinessType = getDemoBusinessType()
+let categories: Category[] = []
+let products:   Product[]  = []
+let tables:     Table[]    = []
+let orders:     Order[]    = []
+let nextOrderNumber        = 1
+
+function load(type: BusinessType) {
+  const data = getDemoDataset(type)
+  businessType    = type
+  categories      = structuredClone(data.categories)
+  products        = structuredClone(data.products)
+  tables          = structuredClone(data.tables)
+  orders          = structuredClone(data.orders)
+  nextOrderNumber = data.orders.length + 1
+}
+load(businessType)
 
 function uid() {
   return `demo-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
@@ -86,19 +98,27 @@ export const demoStore = {
     deliveryAddress?: string
     notes?: string
     discount?: number
-    items: { productId: string; quantity: number; notes?: string }[]
+    isPreorder?: boolean
+    scheduledFor?: string
+    items: { productId: string; quantity: number; notes?: string; addonIds?: string[] }[]
   }, userId = 'demo-admin', userName = 'Demo') => {
     const itemsData = dto.items.map(item => {
       const prod = products.find(p => p.id === item.productId)
-      const unitPrice  = Number(prod?.price ?? 0)
+      // Mesmo cálculo da API: preço dos adicionais vem do cadastro
+      const addons = (item.addonIds ?? [])
+        .map(id => prod?.addons?.find(a => a.id === id))
+        .filter((a): a is NonNullable<typeof a> => !!a)
+      const unitPrice  = Number(prod?.price ?? 0) + addons.reduce((s, a) => s + a.price, 0)
       return {
         id: uid(),
         productId:   item.productId,
         productName: prod?.name ?? 'Produto',
         quantity:    item.quantity,
+        unit:        prod?.saleUnit ?? 'UNIT',
         unitPrice,
-        totalPrice:  unitPrice * item.quantity,
+        totalPrice:  Math.round(unitPrice * item.quantity * 100) / 100,
         notes:       item.notes,
+        addons:      addons.length ? addons : undefined,
       }
     })
     const subtotal = itemsData.reduce((s, i) => s + i.totalPrice, 0)
@@ -131,6 +151,8 @@ export const demoStore = {
       readyAt:         null,
       deliveredAt:     null,
       cancelledAt:     null,
+      isPreorder:      !!dto.isPreorder || !!dto.scheduledFor,
+      scheduledFor:    dto.scheduledFor ?? null,
     }
     orders.unshift(order)
     // Ocupa mesa se salão
@@ -167,22 +189,28 @@ export const demoStore = {
 
   getKitchenQueue: () => {
     const now = Date.now()
+    // Mesma regra da API: encomendas seguem a data de retirada/entrega
+    const dueAt = (o: Order) => new Date(o.scheduledFor ?? o.createdAt).getTime()
     return orders
       .filter(o => ['RECEIVED','PREPARING'].includes(o.status))
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-      .map(o => ({
-        ...o,
-        elapsedMinutes: Math.floor((now - new Date(o.createdAt).getTime()) / 60000),
-        isUrgent:       Math.floor((now - new Date(o.createdAt).getTime()) / 60000) >= 20,
-      }))
+      .sort((a, b) => dueAt(a) - dueAt(b))
+      .map(o => {
+        const elapsedMinutes = Math.floor((now - new Date(o.createdAt).getTime()) / 60000)
+        const isUrgent = o.scheduledFor
+          ? new Date(o.scheduledFor).getTime() - now <= 60 * 60000
+          : elapsedMinutes >= 20
+        return { ...o, elapsedMinutes, isUrgent }
+      })
+  },
+
+  // Tipo de negócio atual da demo
+  getBusinessType: () => businessType,
+
+  /** Troca a demo (Restaurante, Lanchonete ou Confeitaria) e recarrega os dados. */
+  switchBusiness: (type: BusinessType) => {
+    if (type !== businessType) load(type)
   },
 
   // reset (útil para testes)
-  reset: () => {
-    categories     = structuredClone(DEMO_CATEGORIES)
-    products       = structuredClone(DEMO_PRODUCTS)
-    tables         = structuredClone(DEMO_TABLES)
-    orders         = structuredClone(DEMO_ORDERS)
-    nextOrderNumber = DEMO_ORDERS.length + 1
-  },
+  reset: () => load(businessType),
 }

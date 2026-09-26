@@ -50,7 +50,7 @@ export class ReportsService {
         if (!productSales[item.productId]) {
           productSales[item.productId] = { name: item.productName, qty: 0, revenue: 0 };
         }
-        productSales[item.productId].qty += item.quantity;
+        productSales[item.productId].qty += Number(item.quantity);
         productSales[item.productId].revenue += Number(item.totalPrice);
       });
     });

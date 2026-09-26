@@ -2,7 +2,9 @@ import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'clas
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type, Transform } from 'class-transformer';
 
-export class CreateProductDto {
+import { ProductSaleOptionsDto } from './product-options.dto';
+
+export class CreateProductDto extends ProductSaleOptionsDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
