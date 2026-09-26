@@ -6,7 +6,7 @@ import { AuthProvider, useAuth } from '@/hooks/useAuth'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { PageLoader } from '@/components/ui/LoadingSpinner'
 import { BrandFooter } from '@/components/brand'
-import { IS_DEMO } from '@/lib/demo'
+import { asset } from '@/lib/asset'
 
 function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth()
@@ -19,20 +19,48 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   if (isLoading) return <PageLoader />
   if (!user) return null
 
+  // URL do fundo com basePath correto (funciona local e no GitHub Pages)
+  const bgUrl = asset('/brand/dashboard-background.png')
+
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
 
       {/*
-        Área de conteúdo principal.
-        Aplica o fundo visual apenas fora do modo demo (GitHub Pages).
-        No modo demo a imagem não está disponível como asset estático com basePath.
+        Área de conteúdo com fundo visual.
+        - background-image inline → usa bgUrl com basePath correto
+        - Sem opacity no contêiner pai (não afeta sidebar, logo nem textos)
+        - Sobreposição escura via pseudo-elemento ::before emulado com div absoluto
       */}
-      <div className={`flex-1 flex flex-col overflow-hidden${IS_DEMO ? '' : ' dashboard-bg'}`}>
-        <main className="flex-1 overflow-y-auto">
+      <div
+        className="flex-1 flex flex-col overflow-hidden relative"
+        style={{
+          backgroundImage:    `url('${bgUrl}')`,
+          backgroundSize:     'cover',
+          backgroundPosition: 'center',
+          backgroundAttachment: 'fixed',
+          backgroundRepeat:   'no-repeat',
+        }}
+      >
+        {/* Sobreposição escura suave — opacidade 0.38, sem blur no conteúdo */}
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(10, 11, 18, 0.38)',
+            pointerEvents: 'none',
+            zIndex: 0,
+          }}
+        />
+
+        {/* Conteúdo acima da sobreposição */}
+        <main className="flex-1 overflow-y-auto relative" style={{ zIndex: 1 }}>
           <div className="p-6 max-w-[1400px] mx-auto">{children}</div>
         </main>
-        <BrandFooter />
+        <div className="relative" style={{ zIndex: 1 }}>
+          <BrandFooter />
+        </div>
       </div>
     </div>
   )

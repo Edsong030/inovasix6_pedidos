@@ -18,6 +18,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
+import { asset } from '@/lib/asset'
 
 // ─── Tamanhos da variante "full" (altura em px) ───────────────────────────────
 const FULL_SIZES = {
@@ -31,7 +32,6 @@ const FULL_SIZES = {
 
 type FullSize = keyof typeof FULL_SIZES
 
-// ─── Props ────────────────────────────────────────────────────────────────────
 interface InovasixLogoFullProps {
   variant?: 'full'
   size?: FullSize
@@ -43,31 +43,23 @@ interface InovasixLogoSidebarProps {
 }
 type InovasixLogoProps = InovasixLogoFullProps | InovasixLogoSidebarProps
 
-// ─── Caminho único do logo oficial ────────────────────────────────────────────
-const LOGO_SRC = '/brand/inovasix6-pedidos-logo.png'
-
-// ─── Componente principal ─────────────────────────────────────────────────────
 export function InovasixLogo(props: InovasixLogoProps) {
+  // O asset() injeta o basePath correto em modo demo (GitHub Pages)
+  const logoSrc = asset('/brand/inovasix6-pedidos-logo.png')
 
-  // ── sidebar: largura fixa 180px, altura auto, sem corte, sem distorção ──
   if (props.variant === 'sidebar') {
     return (
       <div
         className={cn('flex items-center justify-center w-full flex-shrink-0', props.className)}
         style={{ minHeight: 80, padding: '4px 0' }}
       >
-        {/* img nativo garante que o browser nunca distorce */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={LOGO_SRC}
+          src={logoSrc}
           alt="Inovasix6 Pedidos"
           style={{
-            width: 180,
-            maxWidth: 190,
-            height: 'auto',
-            objectFit: 'contain',
-            imageRendering: 'crisp-edges',
-            display: 'block',
+            width: 180, maxWidth: 190, height: 'auto',
+            objectFit: 'contain', imageRendering: 'crisp-edges', display: 'block',
           }}
           loading="eager"
           decoding="sync"
@@ -76,24 +68,17 @@ export function InovasixLogo(props: InovasixLogoProps) {
     )
   }
 
-  // ── full: altura fixa pelo size, largura automática proporcional ──────────
   const h = FULL_SIZES[(props as InovasixLogoFullProps).size ?? 'md']
 
   return (
-    <div
-      className={cn('inline-flex items-center justify-center flex-shrink-0', props.className)}
-    >
-      {/* img nativo para máxima fidelidade com a imagem original */}
+    <div className={cn('inline-flex items-center justify-center flex-shrink-0', props.className)}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={LOGO_SRC}
+        src={logoSrc}
         alt="Inovasix6 Pedidos"
         style={{
-          height: h,
-          width: 'auto',
-          maxWidth: '100%',
-          objectFit: 'contain',
-          display: 'block',
+          height: h, width: 'auto', maxWidth: '100%',
+          objectFit: 'contain', display: 'block',
         }}
         loading="eager"
         decoding="sync"

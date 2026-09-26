@@ -1,4 +1,5 @@
 import { InovasixLogo } from './InovasixLogo'
+import { asset } from '@/lib/asset'
 
 export function BrandFooter() {
   return (
@@ -11,12 +12,13 @@ export function BrandFooter() {
   )
 }
 
-/** Versão para impressão/comprovante — fundo branco, tamanho adequado */
+/** Versão para impressão/comprovante — usa asset() para basePath correto */
 export function BrandFooterPrint() {
   return (
     <div className="hidden print:flex items-center justify-between pt-4 mt-6 border-t border-gray-200">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/brand/inovasix6-pedidos-logo.png"
+        src={asset('/brand/inovasix6-pedidos-logo.png')}
         alt="Inovasix6 Pedidos"
         style={{ height: 28, width: 'auto' }}
       />
