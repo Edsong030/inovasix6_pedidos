@@ -1,6 +1,8 @@
 # Inovasix6 Pedidos
 
-Plataforma de gestão de pedidos para restaurantes — multicanal, multiempresa, tema escuro premium.
+Plataforma de gestão de pedidos para **restaurantes, lanchonetes e confeitarias** — multicanal, multiempresa, tema escuro premium.
+
+**Demo online:** https://edsong030.github.io/inovasix6_pedidos/ (sem backend e sem banco; veja [Demo](#demo-github-pages))
 
 ## URLs e Portas
 
@@ -97,19 +99,109 @@ npm run dev
 
 O frontend responde em **http://localhost:3000**
 
+### Atualizando uma instalação existente
+
+Depois de um `git pull`, aplique as migrations novas e gere o Prisma Client **com a API parada**:
+
+```bash
+cd api
+npm run db:migrate      # aplica, por exemplo, 20260926120000_business_types
+npm run db:generate
+npm run build
+```
+
+As migrations só adicionam colunas com valores padrão: os dados existentes continuam como **Restaurante**, com produtos vendidos por unidade.
+
 ---
 
 ## Credenciais de Demonstração
 
-> **Slug do restaurante:** `restaurante-demo`
+> **Estabelecimento (slug):** `restaurante-demo`
 
-| Perfil      | E-mail                        | Senha          |
-|-------------|-------------------------------|----------------|
-| Admin       | admin@inovasix.com            | admin123       |
-| Gerente     | gerente@inovasix.com          | gerente123     |
-| Atendente   | atendente@inovasix.com        | atendente123   |
-| Cozinha     | cozinha@inovasix.com          | cozinha123     |
-| Entregador  | entregador@inovasix.com       | entregador123  |
+| Perfil            | E-mail                        | Senha          |
+|-------------------|-------------------------------|----------------|
+| Admin             | admin@inovasix.com            | admin123       |
+| Gerente           | gerente@inovasix.com          | gerente123     |
+| Atendente         | atendente@inovasix.com        | atendente123   |
+| Cozinha/Produção  | cozinha@inovasix.com          | cozinha123     |
+| Entregador        | entregador@inovasix.com       | entregador123  |
+
+> Essas credenciais aparecem na tela de login **somente no modo demo**.
+
+---
+
+## Demo (GitHub Pages)
+
+URL pública: **https://edsong030.github.io/inovasix6_pedidos/**
+
+A demo roda 100% no navegador: sem API, sem banco e sem segredos. No login, escolha a demonstração e entre com as credenciais acima. Dá para trocar depois pelo seletor no menu lateral.
+
+| Demonstração         | O que mostra                                                                 |
+|----------------------|------------------------------------------------------------------------------|
+| **Restaurante Demo** | Entradas, Pratos principais, Pizzas, Lanches, Bebidas e Sobremesas            |
+| **Lanchonete Demo**  | Hambúrgueres, Hot dogs, Porções, Combos, Açaí, Bebidas e Sobremesas, com adicionais e observações (ponto da carne, sem cebola, molho extra) |
+| **Confeitaria Demo** | Bolos, Tortas, Doces, Salgados, Kits e Bebidas, com venda por kg e por cento e encomendas com prazo mínimo |
+
+Cada demonstração tem cardápio, pedidos do dia, Dashboard e Relatórios próprios (histórico de 120 dias gerado localmente). A escolha fica salva só no navegador de quem está vendo. As fotos dos produtos são arquivos locais em `web/public/demo/products/images/`.
+
+O deploy é automático a cada push na `main` (`.github/workflows/deploy-pages.yml`, com `NEXT_PUBLIC_DEMO_MODE=true`).
+
+### Rodar a demo localmente
+
+```bash
+# Bash
+cd web
+NEXT_PUBLIC_DEMO_MODE=true npm run dev
+```
+
+```powershell
+# PowerShell
+cd web
+$env:NEXT_PUBLIC_DEMO_MODE = "true"; npm run dev
+```
+
+Acesse **http://localhost:3000/inovasix6_pedidos/login** (no modo demo o endereço tem o prefixo `/inovasix6_pedidos`, igual ao GitHub Pages). Para voltar ao modo normal no PowerShell: `Remove-Item Env:NEXT_PUBLIC_DEMO_MODE`.
+
+> A demo com os três negócios existe só no modo demo. No modo normal (frontend + API) os dados vêm do banco, e cada estabelecimento tem o próprio cardápio.
+
+---
+
+## Tipos de Negócio
+
+Cada estabelecimento tem um **tipo de negócio** (`businessType`). O padrão é Restaurante.
+
+| Tipo            | Valor           | Área de preparo | Destaques                                                   |
+|-----------------|-----------------|-----------------|-------------------------------------------------------------|
+| Restaurante     | `RESTAURANT`    | Cozinha         | Salão com mesas, delivery e cozinha                          |
+| Lanchonete      | `SNACK_BAR`     | Cozinha         | Combos, adicionais pagos e observações rápidas               |
+| Confeitaria     | `CONFECTIONERY` | **Produção**    | Venda por kg e por cento, produtos sob encomenda             |
+
+O tipo muda os textos do sistema (menu lateral, Dashboard, fila de preparo, Relatórios) e a ordem das origens no Novo Pedido. Ele **não** troca o cardápio: produtos e categorias continuam sendo os cadastrados no estabelecimento.
+
+**Como alterar:** pelo seletor no menu lateral (somente **ADMIN**) ou pela API:
+
+```http
+GET   /api/restaurants/settings
+PATCH /api/restaurants/settings   { "businessType": "CONFECTIONERY" }
+```
+
+### Cardápio: unidade, encomenda, adicionais e observações
+
+No cadastro de produto (Cardápio → Novo/Editar produto):
+
+| Campo                  | Uso                                                                  |
+|------------------------|----------------------------------------------------------------------|
+| **Vendido por**        | `UNIT` (unidade), `KG` (quilo, aceita 1,5 kg) ou `HUNDRED` (cento)   |
+| **Sob encomenda**      | Exige data/hora de retirada ou entrega no pedido                      |
+| **Prazo mínimo**       | Antecedência mínima da encomenda, em horas (ex.: 48)                 |
+| **Adicionais**         | Itens pagos, ex.: Bacon extra R$ 5,00, Topo personalizado R$ 25,00   |
+| **Observações rápidas**| Atalhos no pedido, ex.: Sem cebola, Ponto: ao ponto, Molho à parte   |
+
+No pedido, o preço dos adicionais vem sempre do cadastro (a API ignora valores enviados pelo cliente), e quantidades fracionadas só são aceitas em produtos vendidos por quilo.
+
+### Encomendas
+
+Pedidos podem ter **data/hora de retirada ou entrega** (`isPreorder`, `scheduledFor`). A API recusa encomendas que não respeitem o maior prazo mínimo entre os produtos do pedido. Na fila de preparo, encomendas aparecem pela data combinada ("em 2h", "em 50h") e só ficam urgentes a menos de 1 hora do horário; no Dashboard, não disparam o alerta de pedido atrasado.
 
 ---
 
@@ -137,6 +229,8 @@ O frontend responde em **http://localhost:3000**
 | `npm run build` | Gera build de produção               |
 | `npm run start` | Inicia servidor de produção          |
 
+Com `NEXT_PUBLIC_DEMO_MODE=true`, `dev` roda a demo sem API e `build` gera o site estático em `web/out/` (ver [Demo](#demo-github-pages)).
+
 ---
 
 ## Estrutura do Projeto
@@ -154,8 +248,9 @@ Inovasix Pedidos/
 │   │   ├── categories/           # Categorias do cardápio
 │   │   ├── products/             # Produtos do cardápio
 │   │   ├── orders/               # Pedidos + Dashboard KPIs
+│   │   ├── restaurants/          # Configurações (tipo de negócio)
 │   │   ├── tables/               # Mesas e comandas
-│   │   ├── kitchen/              # Fila da cozinha
+│   │   ├── kitchen/              # Fila da cozinha / produção
 │   │   ├── reports/              # Relatórios de vendas
 │   │   ├── integrations/
 │   │   │   └── anota-ai/         # Módulo integração Anota AI
@@ -172,20 +267,24 @@ Inovasix Pedidos/
     │   └── (dashboard)/
     │       ├── dashboard/        # KPIs e gráficos
     │       ├── orders/           # Gestão de pedidos
-    │       ├── kitchen/          # Fila da cozinha
+    │       ├── kitchen/          # Fila da cozinha / produção
     │       ├── tables/           # Mesas e comandas
     │       ├── menu/             # Cardápio
     │       ├── reports/          # Relatórios
     │       └── users/            # Usuários
     ├── components/
-    │   ├── layout/               # Sidebar, Header
+    │   ├── layout/               # Sidebar, Header, fundo tecnológico
     │   ├── orders/               # OrderCard, NewOrderModal
     │   └── ui/                   # Badge, Modal, Spinner
     ├── hooks/
-    │   └── useAuth.tsx           # Context de autenticação
+    │   ├── useAuth.tsx           # Context de autenticação + troca de tipo de negócio
+    │   ├── useBusiness.ts        # Perfil do tipo de negócio atual
+    │   └── useApi.ts             # Roteia chamadas para a API ou para a demo
     ├── lib/
     │   ├── api.ts                # Axios com interceptors JWT
     │   ├── auth.ts               # Helpers cookie/token
+    │   ├── business.ts           # Textos por tipo de negócio, unidades de venda
+    │   ├── demo/                 # Dados e store da demo (3 tipos de negócio)
     │   └── utils.ts              # Formatadores e constantes
     └── types/
         └── index.ts              # Tipos TypeScript globais
@@ -195,12 +294,16 @@ Inovasix Pedidos/
 
 ## Canais de Pedido
 
-| Canal      | Descrição                      |
-|------------|--------------------------------|
-| `DELIVERY` | Entrega no endereço do cliente |
-| `DINE_IN`  | Consumo no salão / mesa        |
-| `COUNTER`  | Balcão (consumo imediato)      |
-| `TAKEOUT`  | Retirada pelo cliente          |
+| Canal      | Descrição                                            |
+|------------|------------------------------------------------------|
+| `DELIVERY` | Entrega no endereço do cliente                       |
+| `DINE_IN`  | Consumo no salão / mesa                              |
+| `COUNTER`  | Balcão (consumo imediato)                            |
+| `TAKEOUT`  | Retirada pelo cliente                                |
+| `IFOOD`    | Origem iFood — registro manual; integração futura    |
+| `WHATSAPP` | Origem WhatsApp — registro manual; integração futura |
+
+`IFOOD` e `WHATSAPP` ainda não têm integração: o pedido é lançado manualmente e o campo `externalRef` fica reservado para o identificador do canal.
 
 ---
 
@@ -219,10 +322,10 @@ Qualquer etapa → CANCELLED
 
 | Perfil      | Permissões                                      |
 |-------------|-------------------------------------------------|
-| ADMIN       | Acesso total                                    |
+| ADMIN       | Acesso total, inclusive alterar o tipo de negócio |
 | MANAGER     | Tudo exceto operações destrutivas               |
 | ATTENDANT   | Criar pedidos, mesas, cardápio (leitura)        |
-| KITCHEN     | Fila da cozinha, atualizar status               |
+| KITCHEN     | Fila da cozinha/produção, atualizar status      |
 | DELIVERY    | Pedidos delivery, confirmar entrega             |
 
 ---
