@@ -9,7 +9,7 @@ import api from '@/lib/api'
 import { saveAuth, clearAuth, getStoredUser, getToken } from '@/lib/auth'
 import {
   IS_DEMO, DEMO_CREDENTIALS, DEMO_USER,
-  demoStore, getDemoDataset, getDemoBusinessType, saveDemoBusinessType,
+  demoStore, getDemoSettings, getDemoBusinessType, saveDemoBusinessType,
 } from '@/lib/demo'
 import { dataApi } from '@/hooks/useApi'
 import type { AuthUser, BusinessType } from '@/types'
@@ -24,14 +24,16 @@ interface AuthContextType {
   logout:    () => void
   /** Troca o tipo de negócio (na demo, troca entre Restaurante/Lanchonete/Confeitaria Demo) */
   setBusinessType: (type: BusinessType) => Promise<void>
+  /** Atualiza dados exibidos do estabelecimento (ex.: nome na sidebar após salvar as configurações) */
+  patchUser: (patch: Partial<Pick<AuthUser, 'restaurantName'>>) => void
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
-/** Na demo, nome e tipo do estabelecimento vêm da demonstração escolhida. */
+/** Na demo, nome e tipo vêm da demonstração escolhida e das configurações salvas nela. */
 function withDemoBusiness(user: AuthUser): AuthUser {
   const type = getDemoBusinessType()
-  return { ...user, businessType: type, restaurantName: getDemoDataset(type).restaurantName }
+  return { ...user, businessType: type, restaurantName: getDemoSettings(type).name }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -117,8 +119,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user])
 
+  const patchUser = useCallback((patch: Partial<Pick<AuthUser, 'restaurantName'>>) => {
+    setUser(prev => {
+      if (!prev) return prev
+      const next = { ...prev, ...patch }
+      const token = getToken()
+      if (token) saveAuth(token, next)
+      return next
+    })
+  }, [])
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, setBusinessType }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, setBusinessType, patchUser }}>
       {children}
     </AuthContext.Provider>
   )

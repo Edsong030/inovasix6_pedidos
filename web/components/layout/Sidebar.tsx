@@ -5,11 +5,13 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, ShoppingBag, ChefHat, Table2,
-  UtensilsCrossed, BarChart3, Users, LogOut, CakeSlice, Menu, X,
+  UtensilsCrossed, BarChart3, Users, LogOut, CakeSlice, Menu, X, Settings,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { InovasixLogo } from '@/components/brand/InovasixLogo'
+import { useSettings } from '@/hooks/useSettings'
+import { asset } from '@/lib/asset'
 import { IS_DEMO } from '@/lib/demo'
 import { BUSINESS_TYPES, getBusinessProfile } from '@/lib/business'
 import type { BusinessType, UserRole } from '@/types'
@@ -29,12 +31,33 @@ const NAV: NavItem[] = [
   { href: '/menu',      label: 'Cardápio',   icon: <UtensilsCrossed size={18} />, roles: ['ADMIN','MANAGER'] },
   { href: '/reports',   label: 'Relatórios', icon: <BarChart3 size={18} />,       roles: ['ADMIN','MANAGER'] },
   { href: '/users',     label: 'Usuários',   icon: <Users size={18} />,           roles: ['ADMIN','MANAGER'] },
+  { href: '/settings',  label: 'Configurações', icon: <Settings size={18} />,   roles: ['ADMIN','MANAGER'] },
 ]
+
+/** Logo do estabelecimento (Configurações). Não aparece se não houver logo ou se a imagem falhar. */
+function BusinessLogo({ src, size }: { src?: string; size: number }) {
+  const [failed, setFailed] = useState(false)
+  useEffect(() => { setFailed(false) }, [src])
+  if (!src || failed) return null
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={asset(src)}
+      alt=""
+      width={size}
+      height={size}
+      onError={() => setFailed(true)}
+      className="flex-shrink-0 rounded-lg object-contain bg-white/5 border border-white/10"
+      style={{ width: size, height: size }}
+    />
+  )
+}
 
 /** Marca, estabelecimento, navegação e usuário — usado na sidebar fixa e no menu mobile. */
 function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onClose?: () => void }) {
   const pathname = usePathname()
   const { user, logout, setBusinessType } = useAuth()
+  const { settings } = useSettings()
   const business = getBusinessProfile(user?.businessType)
 
   // Confeitaria: "Cozinha" vira "Produção"
@@ -77,10 +100,15 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
           className="px-5 py-3"
           style={{ borderBottom: '1px solid rgba(99, 102, 241, 0.12)' }}
         >
-          <p className="text-xs uppercase tracking-wider" style={{ color: 'rgba(148, 163, 184, 0.7)' }}>
-            {business.label}
-          </p>
-          <p className="text-sm font-medium text-white truncate mt-0.5">{user.restaurantName}</p>
+          <div className="flex items-center gap-3">
+            <BusinessLogo src={settings?.logoUrl} size={36} />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs uppercase tracking-wider" style={{ color: 'rgba(148, 163, 184, 0.7)' }}>
+                {business.label}
+              </p>
+              <p className="text-sm font-medium text-white truncate mt-0.5">{user.restaurantName}</p>
+            </div>
+          </div>
           {canChangeBusiness && (
             <label className="mt-2.5 block">
               <span className="sr-only">Tipo de negócio</span>
@@ -163,7 +191,7 @@ export function Sidebar() {
   const pathname = usePathname()
 
   // Dashboard e Relatórios: sidebar levemente translúcida sobre o fundo tecnológico
-  const overTechBackground = ['/dashboard', '/reports'].some(p => pathname.startsWith(p))
+  const overTechBackground = ['/dashboard', '/reports', '/settings'].some(p => pathname.startsWith(p))
 
   return (
     <aside
@@ -191,6 +219,7 @@ export function Sidebar() {
 export function MobileNav() {
   const pathname = usePathname()
   const { user } = useAuth()
+  const { settings } = useSettings()
   const business = getBusinessProfile(user?.businessType)
   const [open, setOpen] = useState(false)
 
@@ -232,11 +261,14 @@ export function MobileNav() {
           <InovasixLogo size="xs" />
         </Link>
         {user && (
-          <div className="min-w-0 flex-1 pl-3 border-l border-white/10 leading-tight">
-            <p className="text-[10px] uppercase tracking-wider truncate" style={{ color: 'rgba(148, 163, 184, 0.7)' }}>
-              {business.label}
-            </p>
-            <p className="text-sm font-medium text-white truncate">{user.restaurantName}</p>
+          <div className="min-w-0 flex-1 flex items-center gap-2 pl-3 border-l border-white/10 leading-tight">
+            <BusinessLogo src={settings?.logoUrl} size={28} />
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] uppercase tracking-wider truncate" style={{ color: 'rgba(148, 163, 184, 0.7)' }}>
+                {business.label}
+              </p>
+              <p className="text-sm font-medium text-white truncate">{user.restaurantName}</p>
+            </div>
           </div>
         )}
         <button

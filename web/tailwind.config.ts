@@ -14,11 +14,13 @@ const config: Config = {
           50:  '#f0f4ff',
           100: '#e0e9ff',
           200: '#c0d0ff',
-          300: '#93b0ff',
-          400: '#6088ff',
-          500: '#3d5eff',
-          600: '#2a3ef5',
-          700: '#1f2de0',
+          // 300–700 vêm de variáveis CSS para a cor de destaque das Configurações.
+          // Padrão (globals.css): os mesmos valores Inovasix #93b0ff…#1f2de0.
+          300: 'rgb(var(--brand-300) / <alpha-value>)',
+          400: 'rgb(var(--brand-400) / <alpha-value>)',
+          500: 'rgb(var(--brand-500) / <alpha-value>)',
+          600: 'rgb(var(--brand-600) / <alpha-value>)',
+          700: 'rgb(var(--brand-700) / <alpha-value>)',
           800: '#1e27b5',
           900: '#1d248e',
           950: '#141660',

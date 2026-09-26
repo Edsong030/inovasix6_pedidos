@@ -4,11 +4,21 @@
  * Em modo normal, chama a API real via axios.
  */
 
-import { IS_DEMO, demoStore, buildDemoDashboard, buildDemoSalesReport, getDemoHistoryOrders, toLocalYMD } from '@/lib/demo'
+import {
+  IS_DEMO, demoStore, buildDemoDashboard, buildDemoSalesReport, getDemoHistoryOrders, toLocalYMD,
+  getDemoBusinessType, getDemoSettings, saveDemoSettings,
+} from '@/lib/demo'
 import api from '@/lib/api'
-import type { BusinessType, Order, OrderStatus, TableStatus } from '@/types'
+import type { BusinessSettings, BusinessType, Order, OrderStatus, TableStatus } from '@/types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Campos gravados por "Salvar alterações" (o tipo de negócio é trocado à parte, com confirmação). */
+const SETTINGS_FIELDS = [
+  'name', 'phone', 'whatsapp', 'email', 'cnpj', 'logoUrl', 'accentColor',
+  'zipCode', 'street', 'number', 'complement', 'district', 'city', 'state',
+  'openingHours', 'avgPrepMinutes', 'acceptingOrders', 'showUnavailableProducts', 'orderMessage',
+] as const satisfies ReadonlyArray<Exclude<keyof BusinessSettings, 'businessType'>>
 function ok<T>(data: T) {
   return Promise.resolve({ data })
 }
@@ -191,6 +201,34 @@ export const dataApi = {
     IS_DEMO
       ? ok({ businessType })
       : api.patch('/restaurants/settings', { businessType }),
+
+  // Configurações do negócio (demo: localStorage por navegador; API: por restaurantId)
+  getSettings: (): Promise<{ data: BusinessSettings }> =>
+    IS_DEMO
+      ? ok(getDemoSettings(getDemoBusinessType()))
+      : api.get<BusinessSettings>('/restaurants/settings'),
+
+  /** Salva tudo, exceto o tipo de negócio (trocado à parte, com confirmação). */
+  updateSettings: async (settings: BusinessSettings): Promise<{ data: BusinessSettings }> => {
+    if (IS_DEMO) {
+      saveDemoSettings(settings)
+      return { data: getDemoSettings(settings.businessType) }
+    }
+    // Envia só os campos conhecidos (a API recusa campos extras)
+    const body = Object.fromEntries(SETTINGS_FIELDS.map(k => [k, settings[k]]))
+    return api.patch<BusinessSettings>('/restaurants/settings', body)
+  },
+
+  // Upload do logo (fora da demo). Tipo e tamanho são validados de novo na API.
+  uploadLogo: async (file: File): Promise<string> => {
+    if (IS_DEMO) throw new Error('DEMO_MODE')
+    const form = new FormData()
+    form.append('file', file)
+    const { data } = await api.post<{ url: string }>('/uploads/logos', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return data.url
+  },
 
   // Reports
   getSalesReport: (startDate: string, endDate: string) =>

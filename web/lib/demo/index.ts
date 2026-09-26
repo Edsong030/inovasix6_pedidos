@@ -6,3 +6,4 @@ export {
   buildDemoDashboard, buildDemoSalesReport, getDemoHistoryOrders, getDemoDataset, toLocalYMD,
 } from './data'
 export { getDemoBusinessType, saveDemoBusinessType } from './businessType'
+export { getDemoSettings, saveDemoSettings, clearDemoSettings, demoDefaultSettings } from './settings'

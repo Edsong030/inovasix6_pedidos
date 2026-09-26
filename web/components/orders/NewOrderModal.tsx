@@ -4,11 +4,12 @@ import { useState, useEffect, useCallback } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, Trash2, Search, Loader2, CalendarClock } from 'lucide-react'
+import { Plus, Trash2, Search, Loader2, CalendarClock, TriangleAlert, MessageSquareText } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { DateTimePicker } from '@/components/ui/DateTimePicker'
 import { dataApi } from '@/hooks/useApi'
 import { useBusiness } from '@/hooks/useBusiness'
+import { useSettings } from '@/hooks/useSettings'
 import { formatCurrency, cn } from '@/lib/utils'
 import { priceSuffix, quantityStep } from '@/lib/business'
 import { ORDER_CHANNEL_LABEL, PAYMENT_LABEL } from '@/types'
@@ -50,6 +51,7 @@ function toLocalInput(d: Date): string {
 
 export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) {
   const business = useBusiness()
+  const { settings } = useSettings()
   const [products,   setProducts]   = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [tables,     setTables]     = useState<Table[]>([])
@@ -91,7 +93,8 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
   const filteredProducts = products.filter(p => {
     const matchCat = selCat === 'all' || p.categoryId === selCat
     const matchSearch = p.name.toLowerCase().includes(search.toLowerCase())
-    return matchCat && matchSearch && p.available
+    // Configurações → Operação: indisponíveis aparecem (desabilitados) só se o negócio quiser
+    return matchCat && matchSearch && (p.available || !!settings?.showUnavailableProducts)
   })
 
   const getProduct = useCallback((id: string) => products.find(p => p.id === id), [products])
@@ -188,6 +191,18 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
   return (
     <Modal open={open} onClose={onClose} title={isPreorder ? 'Nova Encomenda' : 'Novo Pedido'} size="xl">
       <form onSubmit={handleSubmit(onSubmit)}>
+        {settings && !settings.acceptingOrders && (
+          <p className="mb-4 flex items-start gap-2 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+            <TriangleAlert size={14} className="mt-0.5 flex-shrink-0" />
+            O recebimento de pedidos está pausado em Configurações. Você ainda pode registrar pedidos manualmente.
+          </p>
+        )}
+        {settings?.orderMessage && (
+          <p className="mb-4 flex items-start gap-2 rounded-xl border border-brand-500/20 bg-brand-500/10 px-3 py-2 text-xs text-gray-200">
+            <MessageSquareText size={14} className="mt-0.5 flex-shrink-0 text-brand-300" />
+            {settings.orderMessage}
+          </p>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Left: order info */}
           <div className="space-y-4">
@@ -415,11 +430,16 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
                   key={product.id}
                   type="button"
                   onClick={() => addItem(product)}
-                  className="w-full flex items-center justify-between p-3 bg-surface-50 hover:bg-card-hover border border-card-border rounded-xl transition-colors text-left group"
+                  disabled={!product.available}
+                  title={product.available ? undefined : 'Produto indisponível'}
+                  className="w-full flex items-center justify-between p-3 bg-surface-50 hover:bg-card-hover border border-card-border rounded-xl transition-colors text-left group disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-surface-50"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-white truncate group-hover:text-brand-300">{product.name}</p>
                     <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                      {!product.available && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-500/20 text-gray-300">Indisponível</span>
+                      )}
                       {product.madeToOrder && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300">
                           Sob encomenda{product.minLeadTimeHours ? ` · ${product.minLeadTimeHours}h` : ''}

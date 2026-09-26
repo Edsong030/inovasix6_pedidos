@@ -7,6 +7,12 @@
 :root {
   --background: #0f1117;
   --foreground: #e8eaf0;
+  /* Cor de destaque (R G B). Padrão Inovasix; trocada em Configurações → Identidade visual */
+  --brand-300: 147 176 255;
+  --brand-400: 96 136 255;
+  --brand-500: 61 94 255;
+  --brand-600: 42 62 245;
+  --brand-700: 31 45 224;
 }
 
 * {

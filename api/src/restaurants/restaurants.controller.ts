@@ -1,5 +1,5 @@
 import { Controller, Get, Patch, Body, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { RestaurantsService } from './restaurants.service';
 import { UpdateRestaurantSettingsDto } from './dto/update-restaurant-settings.dto';
@@ -15,15 +15,21 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 export class RestaurantsController {
   constructor(private svc: RestaurantsService) {}
 
-  /** Configurações do estabelecimento do usuário logado (inclui o tipo de negócio). */
+  /** Configurações do estabelecimento do usuário logado (somente dados públicos). */
   @Get('settings')
+  @ApiOperation({ summary: 'Configurações do estabelecimento do usuário logado' })
   settings(@CurrentUser() u: { restaurantId: string }) {
     return this.svc.getSettings(u.restaurantId);
   }
 
+  /** Atualização parcial. O tipo de negócio só pode ser trocado pelo ADMIN. */
   @Patch('settings')
-  @Roles(UserRole.ADMIN)
-  updateSettings(@CurrentUser() u: { restaurantId: string }, @Body() dto: UpdateRestaurantSettingsDto) {
-    return this.svc.updateSettings(u.restaurantId, dto);
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Atualiza as configurações do estabelecimento (ADMIN/MANAGER)' })
+  updateSettings(
+    @CurrentUser() u: { restaurantId: string; role: UserRole },
+    @Body() dto: UpdateRestaurantSettingsDto,
+  ) {
+    return this.svc.updateSettings(u.restaurantId, u.role, dto);
   }
 }

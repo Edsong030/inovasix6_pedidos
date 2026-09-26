@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { AuthProvider, useAuth } from '@/hooks/useAuth'
+import { SettingsProvider } from '@/hooks/useSettings'
 import { Sidebar, MobileNav } from '@/components/layout/Sidebar'
 import { TechBackdrop } from '@/components/layout/TechBackdrop'
 import { PageLoader } from '@/components/ui/LoadingSpinner'
@@ -23,8 +24,8 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
 
   // URL do fundo com basePath correto (funciona local e no GitHub Pages)
   const bgUrl = asset('/brand/dashboard-background.png')
-  // Dashboard e Relatórios usam fundo tecnológico próprio (sem foto)
-  const plainBackground = ['/dashboard', '/reports'].some(p => pathname?.startsWith(p))
+  // Dashboard, Relatórios e Configurações usam fundo tecnológico próprio (sem foto)
+  const plainBackground = ['/dashboard', '/reports', '/settings'].some(p => pathname?.startsWith(p))
 
   return (
     // Desktop (≥1024px): sidebar fixa e rolagem dentro do <main>.
@@ -84,7 +85,9 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
-      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+      <SettingsProvider>
+        <DashboardLayoutInner>{children}</DashboardLayoutInner>
+      </SettingsProvider>
     </AuthProvider>
   )
 }

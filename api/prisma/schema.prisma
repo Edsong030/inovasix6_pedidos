@@ -23,9 +23,31 @@ model Restaurant {
   slug         String       @unique
   businessType BusinessType @default(RESTAURANT)
   phone        String?
+  /// Endereço em uma linha (legado); montado a partir dos campos abaixo ao salvar as configurações
   address      String?
   logoUrl      String?
   active       Boolean      @default(true)
+
+  // ─── Configurações do negócio (tela Configurações) ─────────────────────────
+  whatsapp                String?
+  email                   String?
+  /// Somente dígitos
+  cnpj                    String?
+  /// Paleta de destaque pré-aprovada: inovasix | violet | cyan | emerald | rose | orange
+  accentColor             String   @default("inovasix")
+  zipCode                 String?
+  street                  String?
+  addressNumber           String?
+  complement              String?
+  district                String?
+  city                    String?
+  state                   String?
+  /// [{ day: 0-6, open, opensAt: "HH:MM", closesAt: "HH:MM" }]; null = padrão do tipo de negócio
+  openingHours            Json?
+  avgPrepMinutes          Int      @default(30)
+  acceptingOrders         Boolean  @default(true)
+  showUnavailableProducts Boolean  @default(false)
+  orderMessage            String?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 

@@ -216,6 +216,43 @@ export interface AuthUser {
   active?: boolean
 }
 
+// ─── Configurações do negócio ────────────────────────────────────────────────
+
+/** Paletas de destaque pré-aprovadas (contraste AA sobre o tema escuro). */
+export type AccentColor = 'inovasix' | 'violet' | 'cyan' | 'emerald' | 'rose' | 'orange'
+
+/** Horário de um dia da semana (0 = domingo … 6 = sábado), horas em HH:MM. */
+export interface OpeningHour {
+  day: number
+  open: boolean
+  opensAt: string
+  closesAt: string
+}
+
+/** Configurações do estabelecimento. Telefones, CEP e CNPJ guardados só com dígitos. */
+export interface BusinessSettings {
+  name: string
+  businessType: BusinessType
+  phone: string
+  whatsapp: string
+  email: string
+  cnpj: string
+  logoUrl: string
+  accentColor: AccentColor
+  zipCode: string
+  street: string
+  number: string
+  complement: string
+  district: string
+  city: string
+  state: string
+  openingHours: OpeningHour[]
+  avgPrepMinutes: number
+  acceptingOrders: boolean
+  showUnavailableProducts: boolean
+  orderMessage: string
+}
+
 export interface LoginResponse {
   accessToken: string
   user: AuthUser
