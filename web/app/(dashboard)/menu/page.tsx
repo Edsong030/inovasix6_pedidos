@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { dataApi } from '@/hooks/useApi'
 import { IS_DEMO } from '@/lib/demo'
+import { asset } from '@/lib/asset'
 import { Header } from '@/components/layout/Header'
 import { Modal } from '@/components/ui/Modal'
 import { PageLoader } from '@/components/ui/LoadingSpinner'
