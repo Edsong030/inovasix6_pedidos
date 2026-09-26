@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { Prisma, Restaurant, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateRestaurantSettingsDto } from './dto/update-restaurant-settings.dto';
-import { defaultOpeningHours, type OpeningHour } from './settings.constants';
+import { DEFAULT_BUSINESS_NAMES, defaultOpeningHours, isDefaultBusinessName, type OpeningHour } from './settings.constants';
 
 /**
  * Somente campos públicos do estabelecimento. Nada de segredos, tokens
@@ -104,6 +104,13 @@ export class RestaurantsService {
           .map(({ day, open, opensAt, closesAt }) => ({ day, open, opensAt, closesAt })),
       }),
     };
+
+    // Nome padrão acompanha o novo tipo (Restaurante Demo → Confeitaria Demo).
+    // Nome personalizado, ou enviado junto nesta requisição, nunca é sobrescrito.
+    const typeChanged = !!dto.businessType && dto.businessType !== current.businessType;
+    if (typeChanged && dto.name === undefined && isDefaultBusinessName(current.name)) {
+      data.name = DEFAULT_BUSINESS_NAMES[dto.businessType!];
+    }
 
     const updated = await this.prisma.restaurant.update({
       where: { id: restaurantId },

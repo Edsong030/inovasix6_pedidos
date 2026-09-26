@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto, UpdateOrderStatusDto } from './dto/create-order.dto';
 import { OrderStatus } from '@prisma/client';
+import { averagePrepMinutes } from './prep-time';
 
 @Injectable()
 export class OrdersService {
@@ -252,25 +253,18 @@ export class OrdersService {
       }),
     ]);
 
-    // Tempo médio de preparo (do received ao ready)
+    // Tempo médio de preparo (do recebimento até pronto), só com cronologia válida.
+    // null quando não há pedidos válidos — o frontend exibe "—", nunca "0 min".
     const completedToday = await this.prisma.order.findMany({
       where: {
         restaurantId,
         createdAt: { gte: today, lt: tomorrow },
-        status: { in: [OrderStatus.DELIVERED, OrderStatus.READY] },
-        prepStartedAt: { not: null },
+        status: { not: OrderStatus.CANCELLED },
         readyAt: { not: null },
       },
-      select: { createdAt: true, readyAt: true },
+      select: { createdAt: true, prepStartedAt: true, readyAt: true, deliveredAt: true },
     });
-
-    let avgPrepTime = 0;
-    if (completedToday.length > 0) {
-      const totalMs = completedToday.reduce((sum, o) => {
-        return sum + (o.readyAt!.getTime() - o.createdAt.getTime());
-      }, 0);
-      avgPrepTime = Math.round(totalMs / completedToday.length / 60000); // minutos
-    }
+    const avgPrepTime = averagePrepMinutes(completedToday);
 
     return {
       ordersToday,

@@ -52,6 +52,11 @@ function buildOrders(products: Product[], specs: OrderSpec[]): Order[] {
     const createdMs = s.minutesAgo * 60000
     const started   = s.status !== 'RECEIVED' && s.status !== 'CANCELLED'
     const ready     = ['READY', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(s.status)
+    // "há quantos ms": cada etapa acontece depois da anterior e nunca no futuro
+    // (recebido ≥ preparo ≥ pronto ≥ entregue, em tempo decorrido)
+    const startedAgo   = Math.max(0, createdMs - 2 * 60000)
+    const readyAgo     = Math.min(startedAgo, Math.max(60000, createdMs - 15 * 60000))
+    const deliveredAgo = Math.min(readyAgo, Math.max(30000, createdMs - 25 * 60000))
     return {
       id: s.id, orderNumber: s.n, channel: s.channel, status: s.status, paymentMethod: s.pay,
       customerName: s.customer, customerPhone: s.phone, deliveryAddress: s.address, notes: s.notes,
@@ -61,9 +66,9 @@ function buildOrders(products: Product[], specs: OrderSpec[]): Order[] {
       items,
       createdAt: iso(createdMs),
       updatedAt: iso(Math.min(createdMs, 2 * 60000)),
-      prepStartedAt: started ? iso(createdMs - 2 * 60000) : null,
-      readyAt:       ready ? iso(Math.max(60000, createdMs - 15 * 60000)) : null,
-      deliveredAt:   s.status === 'DELIVERED' ? iso(Math.max(30000, createdMs - 25 * 60000)) : null,
+      prepStartedAt: started ? iso(startedAgo) : null,
+      readyAt:       ready ? iso(readyAgo) : null,
+      deliveredAt:   s.status === 'DELIVERED' ? iso(deliveredAgo) : null,
       cancelledAt:   null,
       isPreorder:    s.scheduledInHours !== undefined,
       scheduledFor:  s.scheduledInHours !== undefined ? new Date(now + s.scheduledInHours * 3_600_000).toISOString() : null,

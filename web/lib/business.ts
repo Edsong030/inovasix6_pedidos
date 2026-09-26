@@ -71,6 +71,23 @@ export function getBusinessProfile(type?: BusinessType | null): BusinessProfile 
   return BUSINESS_PROFILES[type ?? 'RESTAURANT'] ?? BUSINESS_PROFILES.RESTAURANT
 }
 
+// ─── Nome padrão x nome personalizado ─────────────────────────────────────────
+// A mesma regra existe na API (api/src/restaurants/settings.constants.ts).
+
+/** "Restaurante Demo", "Lanchonete Demo"… (nome de fábrica de cada tipo). */
+export function isDefaultBusinessName(name: string): boolean {
+  const n = name.trim()
+  return BUSINESS_TYPES.some(t => BUSINESS_PROFILES[t].demoName === n)
+}
+
+/**
+ * Nome após trocar o tipo de negócio: o nome padrão acompanha o novo tipo
+ * (Restaurante Demo → Confeitaria Demo); um nome personalizado nunca é sobrescrito.
+ */
+export function nameForBusinessType(currentName: string, type: BusinessType): string {
+  return isDefaultBusinessName(currentName) ? getBusinessProfile(type).demoName : currentName
+}
+
 // ─── Unidades de venda ────────────────────────────────────────────────────────
 
 /** Sufixo do preço: "/kg", "/cento" ou vazio. */

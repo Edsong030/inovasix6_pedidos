@@ -15,7 +15,7 @@ import { dataApi } from '@/hooks/useApi'
 import { IS_DEMO } from '@/lib/demo'
 import { asset } from '@/lib/asset'
 import { cn } from '@/lib/utils'
-import { BUSINESS_TYPES, getBusinessProfile } from '@/lib/business'
+import { BUSINESS_TYPES, getBusinessProfile, nameForBusinessType } from '@/lib/business'
 import {
   ACCENT_COLORS, ACCENT_PRESETS, LIMITS, UFS, WEEKDAYS, WEEK_ORDER,
   checkLogoFile, defaultPreferences, formatCep, formatCnpj, formatPhone, logoToDataUrl,
@@ -395,7 +395,8 @@ export default function SettingsPage() {
       return
     }
     // Sistema real: só preenche o formulário; nada é gravado até salvar
-    setForm(f => (f ? { ...f, ...defaultPreferences(f.businessType) } : f))
+    // Nome padrão de outro tipo é corrigido para o do tipo atual; nome personalizado fica
+    setForm(f => (f ? { ...f, ...defaultPreferences(f.businessType), name: nameForBusinessType(f.name, f.businessType) } : f))
     setErrors({})
     setConfirmRestore(false)
     toast.success('Padrões aplicados no formulário. Clique em Salvar alterações para confirmar.')
@@ -584,8 +585,8 @@ export default function SettingsPage() {
             <p className="text-sm font-semibold text-white">{IS_DEMO ? 'Restaurar dados da demonstração' : 'Restaurar padrões'}</p>
             <p className="text-xs text-gray-500 mt-0.5">
               {IS_DEMO
-                ? `Volta as configurações, o cardápio e os pedidos da ${business.demoName} ao estado original.`
-                : 'Volta logo, cor, horários e operação ao padrão. Dados do negócio e endereço não mudam.'}
+                ? `Volta a demonstração ao original: nome ${business.demoName}, configurações, cardápio e pedidos.`
+                : 'Volta logo, cor, horários e operação ao padrão e alinha o nome padrão ao tipo. Nome personalizado, contatos e endereço não mudam.'}
             </p>
           </div>
           <button type="button" onClick={() => setConfirmRestore(true)} className="btn-secondary justify-center text-sm max-sm:w-full">
@@ -660,11 +661,11 @@ export default function SettingsPage() {
       >
         {IS_DEMO ? (
           <>
-            <p>As configurações da <strong className="text-white">{business.demoName}</strong> voltam ao original (nome, logo, cor, endereço, horários e operação).</p>
+            <p>O nome volta a ser <strong className="text-white">{business.demoName}</strong> e as configurações (logo, cor, endereço, horários e operação) voltam ao original em todos os tipos de negócio da demonstração.</p>
             <p>O cardápio, os pedidos e as mesas da demonstração também são recarregados. Pedidos criados nesta sessão serão perdidos.</p>
           </>
         ) : (
-          <p>Logo, cor de destaque, horários e operação voltam ao padrão no formulário. Nada é gravado até você clicar em <strong className="text-white">Salvar alterações</strong>.</p>
+          <p>Logo, cor de destaque, horários e operação voltam ao padrão no formulário, e um nome padrão de outro tipo passa a ser o de {business.label}. Nome personalizado não muda. Nada é gravado até você clicar em <strong className="text-white">Salvar alterações</strong>.</p>
         )}
       </ConfirmDialog>
     </div>

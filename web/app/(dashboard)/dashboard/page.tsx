@@ -19,6 +19,7 @@ import { StatusBadge } from '@/components/ui/Badge'
 import { PageLoader } from '@/components/ui/LoadingSpinner'
 import { NewOrderModal } from '@/components/orders/NewOrderModal'
 import { formatCurrency, formatTime, cn } from '@/lib/utils'
+import { averagePrepMinutes, formatPrepMinutes } from '@/lib/prepTime'
 import type { Order, OrderStatus, UserRole } from '@/types'
 
 // ─── Estilo (mesmo padrão visual de Relatórios) ───────────────────────────────
@@ -95,13 +96,11 @@ function metrics(orders: Order[], untilMinute?: number): Metrics {
   const revenue = scoped
     .filter(o => REVENUE_STATUSES.includes(o.status))
     .reduce((s, o) => s + Number(o.total), 0)
-  const prepTimes = scoped
-    .filter(o => o.readyAt)
-    .map(o => (new Date(o.readyAt!).getTime() - new Date(o.createdAt).getTime()) / 60000)
   return {
     orders: scoped.length,
     revenue,
-    avgMinutes: prepTimes.length ? Math.round(prepTimes.reduce((a, b) => a + b, 0) / prepTimes.length) : null,
+    // Só pedidos com cronologia válida; null (exibido como "—") se nenhum
+    avgMinutes: averagePrepMinutes(scoped),
   }
 }
 
@@ -342,7 +341,7 @@ export default function DashboardPage() {
         />
         <KpiCard
           label="Tempo médio"
-          value={cur.avgMinutes === null ? '—' : `${cur.avgMinutes} min`}
+          value={formatPrepMinutes(cur.avgMinutes)}
           icon={<Clock size={20} className="text-violet-300" />}
           iconClass="bg-violet-500/15"
           t={trend(cur.avgMinutes, prev?.avgMinutes ?? null, true)}

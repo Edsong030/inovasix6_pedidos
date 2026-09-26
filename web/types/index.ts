@@ -189,7 +189,8 @@ export interface DashboardData {
   ordersToday: number
   inPreparation: number
   revenueToday: number
-  avgPrepTime: number
+  /** Minutos do recebimento até pronto; null sem pedidos com horários válidos */
+  avgPrepTime: number | null
   recentOrders: Order[]
 }
 

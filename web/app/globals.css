@@ -39,6 +39,11 @@ body {
 ::-webkit-scrollbar-thumb { background: #2a2d3e; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #3d5eff; }
 
+/* Mobile: avisos (react-hot-toast) abaixo do cabeçalho fixo, sem cobrir o botão do menu */
+@media (max-width: 1023px) {
+  [data-rht-toaster] { top: 4.25rem !important; }
+}
+
 /* Seleção */
 ::selection { background: rgba(61,94,255,0.3); color: #fff; }
 

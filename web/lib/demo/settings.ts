@@ -60,10 +60,12 @@ export function saveDemoSettings(settings: BusinessSettings) {
   }
 }
 
-/** Volta o tipo informado aos dados de fábrica da demonstração. */
-export function clearDemoSettings(type: BusinessType) {
-  const all = { ...readAll() }
-  delete all[type]
-  memory = all
-  try { window.localStorage.setItem(KEY, JSON.stringify(all)) } catch { /* só nesta sessão */ }
+/**
+ * Volta a demonstração inteira (todos os tipos) aos dados de fábrica.
+ * Como o nome personalizado acompanha o negócio ao trocar de tipo, limpar só
+ * o tipo atual faria o nome antigo reaparecer ao trocar de novo.
+ */
+export function clearDemoSettings() {
+  memory = {}
+  try { window.localStorage.removeItem(KEY) } catch { /* só nesta sessão */ }
 }

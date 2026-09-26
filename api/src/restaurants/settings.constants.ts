@@ -35,6 +35,18 @@ export function defaultOpeningHours(type: BusinessType): OpeningHour[] {
   }));
 }
 
+/** Nome de fábrica de cada tipo (o mesmo de web/lib/business.ts). */
+export const DEFAULT_BUSINESS_NAMES: Record<BusinessType, string> = {
+  RESTAURANT:    'Restaurante Demo',
+  SNACK_BAR:     'Lanchonete Demo',
+  CONFECTIONERY: 'Confeitaria Demo',
+  JAPANESE:      'Japonês Demo',
+};
+
+export function isDefaultBusinessName(name: string): boolean {
+  return Object.values(DEFAULT_BUSINESS_NAMES).includes((name ?? '').trim());
+}
+
 /** Valida CNPJ (14 dígitos + dígitos verificadores). */
 export function isValidCnpj(value: string): boolean {
   const d = (value ?? '').replace(/\D/g, '');

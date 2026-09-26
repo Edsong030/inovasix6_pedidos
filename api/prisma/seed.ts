@@ -189,6 +189,8 @@ async function main() {
   const existingOrders = await prisma.order.count({ where: { restaurantId: restaurant.id } });
   if (existingOrders === 0) {
     const getProduct = (name: string) => products.find((p) => p.name === name)!;
+    // Horários relativos a agora, sempre em ordem: recebido ≤ preparo ≤ pronto ≤ entregue
+    const minutesAgo = (m: number) => new Date(Date.now() - m * 60000);
 
     const ordersData = [
       // Pedido 1 - Salão mesa 01 - Em preparo
@@ -204,7 +206,8 @@ async function main() {
         subtotal: 110.80,
         discount: 0,
         total: 110.80,
-        prepStartedAt: new Date(Date.now() - 12 * 60000),
+        createdAt: minutesAgo(15),
+        prepStartedAt: minutesAgo(12),
         items: {
           create: [
             { productId: getProduct('Filé ao Molho Madeira').id, productName: 'Filé ao Molho Madeira', quantity: 1, unitPrice: 58.90, totalPrice: 58.90 },
@@ -228,6 +231,7 @@ async function main() {
         subtotal: 87.80,
         discount: 5.00,
         total: 82.80,
+        createdAt: minutesAgo(4),
         items: {
           create: [
             { productId: getProduct('Margherita').id, productName: 'Margherita', quantity: 1, unitPrice: 45.90, totalPrice: 45.90 },
@@ -249,8 +253,9 @@ async function main() {
         subtotal: 72.80,
         discount: 0,
         total: 72.80,
-        prepStartedAt: new Date(Date.now() - 25 * 60000),
-        readyAt: new Date(Date.now() - 3 * 60000),
+        createdAt: minutesAgo(28),
+        prepStartedAt: minutesAgo(25),
+        readyAt: minutesAgo(3),
         items: {
           create: [
             { productId: getProduct('Smash Bacon').id, productName: 'Smash Bacon', quantity: 1, unitPrice: 39.90, totalPrice: 39.90 },
@@ -271,9 +276,10 @@ async function main() {
         subtotal: 94.80,
         discount: 0,
         total: 94.80,
-        prepStartedAt: new Date(Date.now() - 60 * 60000),
-        readyAt: new Date(Date.now() - 40 * 60000),
-        deliveredAt: new Date(Date.now() - 35 * 60000),
+        createdAt: minutesAgo(65),
+        prepStartedAt: minutesAgo(60),
+        readyAt: minutesAgo(40),
+        deliveredAt: minutesAgo(35),
         items: {
           create: [
             { productId: getProduct('Moqueca de Camarão').id, productName: 'Moqueca de Camarão', quantity: 1, unitPrice: 74.90, totalPrice: 74.90 },
@@ -296,8 +302,9 @@ async function main() {
         subtotal: 130.80,
         discount: 10.00,
         total: 120.80,
-        prepStartedAt: new Date(Date.now() - 45 * 60000),
-        readyAt: new Date(Date.now() - 20 * 60000),
+        createdAt: minutesAgo(50),
+        prepStartedAt: minutesAgo(45),
+        readyAt: minutesAgo(20),
         items: {
           create: [
             { productId: getProduct('Quatro Queijos').id, productName: 'Quatro Queijos', quantity: 1, unitPrice: 52.90, totalPrice: 52.90 },
@@ -321,6 +328,24 @@ async function main() {
     console.log('✅ Pedidos de exemplo criados');
   } else {
     console.log('ℹ️  Pedidos já existem, pulando...');
+
+    // Bancos criados por versões antigas deste seed têm pedidos "prontos antes de
+    // recebidos" (o createdAt ficava com a hora do seed). Recua só o createdAt desses
+    // pedidos da loja demo para antes da primeira etapa. Idempotente.
+    const demoOrders = await prisma.order.findMany({
+      where: { restaurantId: restaurant.id },
+      select: { id: true, createdAt: true, prepStartedAt: true, readyAt: true, deliveredAt: true },
+    });
+    let repaired = 0;
+    for (const o of demoOrders) {
+      const steps = [o.prepStartedAt, o.readyAt, o.deliveredAt].filter((d): d is Date => !!d);
+      const first = steps.length ? Math.min(...steps.map((d) => d.getTime())) : null;
+      if (first !== null && first < o.createdAt.getTime()) {
+        await prisma.order.update({ where: { id: o.id }, data: { createdAt: new Date(first - 3 * 60000) } });
+        repaired++;
+      }
+    }
+    if (repaired) console.log(`🔧 ${repaired} pedido(s) de exemplo com horários fora de ordem corrigido(s)`);
   }
 
   console.log('\n✨ Seed concluído com sucesso!');

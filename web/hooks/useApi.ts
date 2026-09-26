@@ -197,10 +197,11 @@ export const dataApi = {
     IS_DEMO ? ok({ id, ...body }) : api.patch(`/users/${id}`, body),
 
   // Configurações do estabelecimento (tipo de negócio)
-  updateBusinessType: (businessType: BusinessType) =>
+  /** Devolve o nome resultante (o padrão acompanha o tipo; o personalizado é mantido). */
+  updateBusinessType: (businessType: BusinessType): Promise<{ data: Pick<BusinessSettings, 'name' | 'businessType'> }> =>
     IS_DEMO
-      ? ok({ businessType })
-      : api.patch('/restaurants/settings', { businessType }),
+      ? ok({ businessType, name: getDemoSettings(businessType).name })
+      : api.patch<BusinessSettings>('/restaurants/settings', { businessType }),
 
   // Configurações do negócio (demo: localStorage por navegador; API: por restaurantId)
   getSettings: (): Promise<{ data: BusinessSettings }> =>

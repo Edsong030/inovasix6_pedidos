@@ -6,6 +6,7 @@
 import type { AuthUser, BusinessType, Category, Product, Table, Order, DashboardData, SalesReport } from '@/types'
 import { SNACK_BAR_DEMO, CONFECTIONERY_DEMO, JAPANESE_DEMO, type DemoBusinessData } from './businesses'
 import { getDemoBusinessType } from './businessType'
+import { averagePrepMinutes } from '@/lib/prepTime'
 
 // ─── Usuário demo ──────────────────────────────────────────────────────────────
 export const DEMO_USER: AuthUser = {
@@ -173,16 +174,9 @@ export function buildDemoDashboard(orders: Order[]): DashboardData {
     .filter(o => ['DELIVERED','READY','OUT_FOR_DELIVERY'].includes(o.status))
     .reduce((s, o) => s + Number(o.total), 0)
 
-  const completed = orders.filter(o =>
-    o.status === 'DELIVERED' && o.prepStartedAt && o.readyAt,
-  )
-  const avgPrepTime = completed.length > 0
-    ? Math.round(
-        completed.reduce((s, o) =>
-          s + (new Date(o.readyAt!).getTime() - new Date(o.createdAt).getTime()), 0
-        ) / completed.length / 60000,
-      )
-    : 18
+  // Só pedidos com cronologia válida; sem dados → null (nunca um valor inventado)
+  const avg = averagePrepMinutes(orders.filter(o => o.status !== 'CANCELLED'))
+  const avgPrepTime = avg === null ? null : Math.round(avg)
 
   return {
     ordersToday:   orders.filter(o => o.status !== 'CANCELLED').length,

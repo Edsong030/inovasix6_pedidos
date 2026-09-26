@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { dataApi } from '@/hooks/useApi'
 import { IS_DEMO, demoStore, clearDemoSettings, getDemoSettings } from '@/lib/demo'
 import { applyAccent, clearAccent } from '@/lib/settings'
-import type { BusinessSettings } from '@/types'
+import type { BusinessSettings, BusinessType } from '@/types'
 
 interface SettingsContextType {
   /** null enquanto carrega ou se não foi possível carregar */
@@ -26,6 +26,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<BusinessSettings | null>(null)
   const [loading,  setLoading]  = useState(true)
   const [failed,   setFailed]   = useState(false)
+  /** Tipo de negócio da sessão no momento em que as configurações foram carregadas */
+  const [loadedFor, setLoadedFor] = useState<BusinessType | undefined>()
 
   const userId       = user?.id
   const businessType = user?.businessType
@@ -35,6 +37,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     try {
       const { data } = await dataApi.getSettings()
       setSettings(data)
+      setLoadedFor(businessType)
       setFailed(false)
     } catch {
       setFailed(true)
@@ -45,6 +48,19 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, [userId, businessType])
 
   useEffect(() => { reload() }, [reload])
+
+  // A sessão (cookie) guarda nome e tipo do login; o que está salvo prevalece,
+  // para sidebar e cabeçalho mobile ficarem coerentes após recarregar
+  const savedName = settings?.name
+  const savedType = settings?.businessType
+  useEffect(() => {
+    if (!user || !savedName || !savedType) return
+    // Durante uma troca de tipo as configurações ainda são do tipo anterior: espera recarregar
+    if (loadedFor !== user.businessType) return
+    if (user.restaurantName !== savedName || user.businessType !== savedType) {
+      patchUser({ restaurantName: savedName, businessType: savedType })
+    }
+  }, [user, savedName, savedType, loadedFor, patchUser])
 
   const accent = settings?.accentColor
   useEffect(() => { if (accent) applyAccent(accent) }, [accent])
@@ -60,7 +76,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const restoreDemo = useCallback(async () => {
     if (!IS_DEMO || !businessType) return
-    clearDemoSettings(businessType)
+    clearDemoSettings()
     demoStore.reset()
     patchUser({ restaurantName: getDemoSettings(businessType).name })
     await reload()

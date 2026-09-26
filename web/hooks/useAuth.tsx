@@ -9,9 +9,10 @@ import api from '@/lib/api'
 import { saveAuth, clearAuth, getStoredUser, getToken } from '@/lib/auth'
 import {
   IS_DEMO, DEMO_CREDENTIALS, DEMO_USER,
-  demoStore, getDemoSettings, getDemoBusinessType, saveDemoBusinessType,
+  demoStore, getDemoSettings, saveDemoSettings, getDemoBusinessType, saveDemoBusinessType,
 } from '@/lib/demo'
 import { dataApi } from '@/hooks/useApi'
+import { isDefaultBusinessName } from '@/lib/business'
 import type { AuthUser, BusinessType } from '@/types'
 import toast from 'react-hot-toast'
 
@@ -25,7 +26,7 @@ interface AuthContextType {
   /** Troca o tipo de negócio (na demo, troca entre Restaurante/Lanchonete/Confeitaria Demo) */
   setBusinessType: (type: BusinessType) => Promise<void>
   /** Atualiza dados exibidos do estabelecimento (ex.: nome na sidebar após salvar as configurações) */
-  patchUser: (patch: Partial<Pick<AuthUser, 'restaurantName'>>) => void
+  patchUser: (patch: Partial<Pick<AuthUser, 'restaurantName' | 'businessType'>>) => void
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -96,6 +97,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user || user.businessType === type) return
 
     if (IS_DEMO) {
+      // Nome personalizado acompanha o negócio; o nome padrão ("Restaurante Demo")
+      // dá lugar ao do novo tipo, que já vem nas configurações dele
+      const currentName = getDemoSettings(user.businessType ?? 'RESTAURANT').name
+      const target = getDemoSettings(type)
+      if (!isDefaultBusinessName(currentName) && target.name !== currentName) {
+        saveDemoSettings({ ...target, name: currentName })
+      }
       // Tudo local: troca o conjunto de dados da demo, sem rede
       saveDemoBusinessType(type)
       demoStore.switchBusiness(type)
@@ -107,8 +115,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      await dataApi.updateBusinessType(type)
-      const next = { ...user, businessType: type }
+      // A API devolve o nome já ajustado ao novo tipo (ou o personalizado, intacto)
+      const { data } = await dataApi.updateBusinessType(type)
+      const next = { ...user, businessType: type, restaurantName: data.name || user.restaurantName }
       const token = getToken()
       if (token) saveAuth(token, next)
       setUser(next)
@@ -119,7 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user])
 
-  const patchUser = useCallback((patch: Partial<Pick<AuthUser, 'restaurantName'>>) => {
+  const patchUser = useCallback((patch: Partial<Pick<AuthUser, 'restaurantName' | 'businessType'>>) => {
     setUser(prev => {
       if (!prev) return prev
       const next = { ...prev, ...patch }
