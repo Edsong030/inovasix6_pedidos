@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -33,7 +34,7 @@ export class ProductsController {
 
   @Patch(':id')
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
-  update(@Param('id') id: string, @Body() dto: CreateProductDto, @CurrentUser() u: any) {
+  update(@Param('id') id: string, @Body() dto: UpdateProductDto, @CurrentUser() u: any) {
     return this.svc.update(id, u.restaurantId, dto);
   }
 

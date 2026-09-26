@@ -133,35 +133,36 @@ async function main() {
   // ─── Produtos ─────────────────────────────────────────────────────────────
   const getCatId = (name: string) => categories.find((c) => c.name === name)!.id;
 
+  // Imagens: Unsplash com IDs fixos (estáveis, licença livre para uso demonstrativo)
   const productsList = [
     // Entradas
-    { categoryId: getCatId('Entradas'), name: 'Bruschetta de Tomate', description: 'Pão italiano com tomate, manjericão e azeite', price: 24.90 },
-    { categoryId: getCatId('Entradas'), name: 'Bolinho de Bacalhau (8 un)', description: 'Bolinhos fritos com maionese de ervas', price: 32.00 },
-    { categoryId: getCatId('Entradas'), name: 'Tábua de Frios', description: 'Queijos, frios e antepastos', price: 48.00 },
+    { categoryId: getCatId('Entradas'), name: 'Bruschetta de Tomate',     description: 'Pão italiano com tomate, manjericão e azeite', price: 24.90, imageUrl: 'https://images.unsplash.com/photo-1572695157366-5e585ab2b69f?w=400&q=80' },
+    { categoryId: getCatId('Entradas'), name: 'Bolinho de Bacalhau (8 un)',description: 'Bolinhos fritos com maionese de ervas',         price: 32.00, imageUrl: 'https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=400&q=80' },
+    { categoryId: getCatId('Entradas'), name: 'Tábua de Frios',           description: 'Queijos, frios e antepastos',                   price: 48.00, imageUrl: 'https://images.unsplash.com/photo-1506368249639-73a05d6f6488?w=400&q=80' },
     // Pratos Principais
-    { categoryId: getCatId('Pratos Principais'), name: 'Filé ao Molho Madeira', description: 'Filé mignon grelhado com batata e arroz', price: 58.90 },
-    { categoryId: getCatId('Pratos Principais'), name: 'Frango Grelhado', description: 'Peito de frango grelhado com legumes', price: 42.90 },
-    { categoryId: getCatId('Pratos Principais'), name: 'Moqueca de Camarão', description: 'Camarão, leite de coco, dendê e arroz', price: 74.90 },
-    { categoryId: getCatId('Pratos Principais'), name: 'Risoto de Funghi', description: 'Arroz arbóreo com cogumelos secos', price: 52.90 },
+    { categoryId: getCatId('Pratos Principais'), name: 'Filé ao Molho Madeira', description: 'Filé mignon grelhado com batata e arroz', price: 58.90, imageUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=400&q=80' },
+    { categoryId: getCatId('Pratos Principais'), name: 'Frango Grelhado',       description: 'Peito de frango grelhado com legumes',    price: 42.90, imageUrl: 'https://images.unsplash.com/photo-1532550907401-a500c9a57435?w=400&q=80' },
+    { categoryId: getCatId('Pratos Principais'), name: 'Moqueca de Camarão',    description: 'Camarão, leite de coco, dendê e arroz',   price: 74.90, imageUrl: 'https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=400&q=80' },
+    { categoryId: getCatId('Pratos Principais'), name: 'Risoto de Funghi',      description: 'Arroz arbóreo com cogumelos secos',        price: 52.90, imageUrl: 'https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=400&q=80' },
     // Pizzas
-    { categoryId: getCatId('Pizzas'), name: 'Margherita', description: 'Molho de tomate, mussarela e manjericão', price: 45.90 },
-    { categoryId: getCatId('Pizzas'), name: 'Calabresa', description: 'Molho, calabresa fatiada e cebola', price: 42.90 },
-    { categoryId: getCatId('Pizzas'), name: 'Frango com Catupiry', description: 'Frango desfiado, catupiry e orégano', price: 48.90 },
-    { categoryId: getCatId('Pizzas'), name: 'Quatro Queijos', description: 'Mussarela, provolone, gorgonzola e parmesão', price: 52.90 },
+    { categoryId: getCatId('Pizzas'), name: 'Margherita',          description: 'Molho de tomate, mussarela e manjericão', price: 45.90, imageUrl: 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=400&q=80' },
+    { categoryId: getCatId('Pizzas'), name: 'Calabresa',           description: 'Molho, calabresa fatiada e cebola',       price: 42.90, imageUrl: 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=400&q=80' },
+    { categoryId: getCatId('Pizzas'), name: 'Frango com Catupiry', description: 'Frango desfiado, catupiry e orégano',     price: 48.90, imageUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400&q=80' },
+    { categoryId: getCatId('Pizzas'), name: 'Quatro Queijos',      description: 'Mussarela, provolone, gorgonzola e parmesão', price: 52.90, imageUrl: 'https://images.unsplash.com/photo-1571997478779-2adcbbe9ab2f?w=400&q=80' },
     // Lanches
-    { categoryId: getCatId('Lanches'), name: 'Classic Burger', description: 'Hambúrguer 180g, queijo, alface e tomate', price: 32.90 },
-    { categoryId: getCatId('Lanches'), name: 'Smash Bacon', description: 'Duplo smash, bacon crocante e cheddar', price: 39.90 },
-    { categoryId: getCatId('Lanches'), name: 'Veggie Burger', description: 'Hambúrguer de grão-de-bico, rúcula e pesto', price: 34.90 },
+    { categoryId: getCatId('Lanches'), name: 'Classic Burger', description: 'Hambúrguer 180g, queijo, alface e tomate',     price: 32.90, imageUrl: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&q=80' },
+    { categoryId: getCatId('Lanches'), name: 'Smash Bacon',    description: 'Duplo smash, bacon crocante e cheddar',        price: 39.90, imageUrl: 'https://images.unsplash.com/photo-1553979459-d2229ba7433b?w=400&q=80' },
+    { categoryId: getCatId('Lanches'), name: 'Veggie Burger',  description: 'Hambúrguer de grão-de-bico, rúcula e pesto',   price: 34.90, imageUrl: 'https://images.unsplash.com/photo-1520072959219-c595dc870360?w=400&q=80' },
     // Bebidas
-    { categoryId: getCatId('Bebidas'), name: 'Coca-Cola Lata', description: '350ml', price: 6.00 },
-    { categoryId: getCatId('Bebidas'), name: 'Suco de Laranja Natural', description: '400ml', price: 12.00 },
-    { categoryId: getCatId('Bebidas'), name: 'Água Mineral', description: '500ml com ou sem gás', price: 5.00 },
-    { categoryId: getCatId('Bebidas'), name: 'Cerveja Artesanal IPA', description: 'Long neck 355ml', price: 18.00 },
-    { categoryId: getCatId('Bebidas'), name: 'Cerveja Pilsen', description: 'Lata 350ml', price: 8.00 },
+    { categoryId: getCatId('Bebidas'), name: 'Coca-Cola Lata',        description: '350ml',                 price:  6.00, imageUrl: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=400&q=80' },
+    { categoryId: getCatId('Bebidas'), name: 'Suco de Laranja Natural',description: '400ml natural',        price: 12.00, imageUrl: 'https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=400&q=80' },
+    { categoryId: getCatId('Bebidas'), name: 'Água Mineral',          description: '500ml com ou sem gás', price:  5.00, imageUrl: 'https://images.unsplash.com/photo-1548839140-29a749e1cf4d?w=400&q=80' },
+    { categoryId: getCatId('Bebidas'), name: 'Cerveja Artesanal IPA', description: 'Long neck 355ml',      price: 18.00, imageUrl: 'https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=400&q=80' },
+    { categoryId: getCatId('Bebidas'), name: 'Cerveja Pilsen',        description: 'Lata 350ml',           price:  8.00, imageUrl: 'https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400&q=80' },
     // Sobremesas
-    { categoryId: getCatId('Sobremesas'), name: 'Petit Gateau', description: 'Bolo de chocolate quente com sorvete', price: 22.90 },
-    { categoryId: getCatId('Sobremesas'), name: 'Pudim de Leite', description: 'Pudim caseiro com calda de caramelo', price: 14.90 },
-    { categoryId: getCatId('Sobremesas'), name: 'Cheesecake de Morango', description: 'Base de biscoito, recheio cremoso e calda', price: 19.90 },
+    { categoryId: getCatId('Sobremesas'), name: 'Petit Gateau',          description: 'Bolo de chocolate quente com sorvete',   price: 22.90, imageUrl: 'https://images.unsplash.com/photo-1611329532992-0b7af95a3b14?w=400&q=80' },
+    { categoryId: getCatId('Sobremesas'), name: 'Pudim de Leite',         description: 'Pudim caseiro com calda de caramelo',    price: 14.90, imageUrl: 'https://images.unsplash.com/photo-1515467837915-15c4777cd6f0?w=400&q=80' },
+    { categoryId: getCatId('Sobremesas'), name: 'Cheesecake de Morango',  description: 'Base de biscoito, recheio cremoso e calda', price: 19.90, imageUrl: 'https://images.unsplash.com/photo-1533134242443-d4fd215305ad?w=400&q=80' },
   ];
 
   const products: { id: string; name: string; price: Decimal }[] = [];
@@ -173,10 +174,16 @@ async function main() {
       p = await prisma.product.create({
         data: { restaurantId: restaurant.id, ...prod },
       });
+    } else if (!p.imageUrl && prod.imageUrl) {
+      // Atualiza imagem se o produto já existia sem imagem
+      p = await prisma.product.update({
+        where: { id: p.id },
+        data: { imageUrl: prod.imageUrl },
+      });
     }
     products.push(p);
   }
-  console.log('✅ Produtos criados');
+  console.log('✅ Produtos criados/atualizados');
 
   // ─── Pedidos de exemplo ───────────────────────────────────────────────────
   const existingOrders = await prisma.order.count({ where: { restaurantId: restaurant.id } });

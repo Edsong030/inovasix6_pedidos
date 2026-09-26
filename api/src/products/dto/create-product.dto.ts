@@ -1,6 +1,6 @@
 import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 export class CreateProductDto {
   @ApiProperty()
@@ -24,10 +24,18 @@ export class CreateProductDto {
   @Type(() => Number)
   price: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ nullable: true, description: 'null remove a imagem' })
   @IsOptional()
   @IsString()
-  imageUrl?: string;
+  // Aceita string, null ou undefined. String vazia é convertida para null.
+  @Transform(({ value }) => (value === '' ? null : value))
+  imageUrl?: string | null;
+
+  @ApiPropertyOptional({ nullable: true, description: 'URL de video curto opcional. null remove o video.' })
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => (value === '' ? null : value))
+  videoUrl?: string | null;
 
   @ApiPropertyOptional({ default: true })
   @IsOptional()

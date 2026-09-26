@@ -10,6 +10,7 @@ import { TablesModule } from './tables/tables.module';
 import { KitchenModule } from './kitchen/kitchen.module';
 import { ReportsModule } from './reports/reports.module';
 import { AnotaAiModule } from './integrations/anota-ai/anota-ai.module';
+import { UploadsModule } from './uploads/uploads.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { AnotaAiModule } from './integrations/anota-ai/anota-ai.module';
     KitchenModule,
     ReportsModule,
     AnotaAiModule,
+    UploadsModule,
   ],
 })
 export class AppModule {}

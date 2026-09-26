@@ -84,6 +84,7 @@ model Product {
   description  String?
   price        Decimal  @db.Decimal(10, 2)
   imageUrl     String?
+  videoUrl     String?
   available    Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

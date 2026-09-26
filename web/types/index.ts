@@ -81,7 +81,8 @@ export interface Product {
   name: string
   description?: string
   price: number
-  imageUrl?: string
+  imageUrl?: string | null
+  videoUrl?: string | null
   available: boolean
   category?: { id: string; name: string }
 }

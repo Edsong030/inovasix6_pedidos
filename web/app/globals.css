@@ -75,3 +75,36 @@ body {
   .text-white { color: #111 !important; }
   .text-gray-400, .text-gray-500 { color: #6b7280 !important; }
 }
+
+/* ── Dashboard background ──────────────────────────────────────────────────── */
+/* Aplicado apenas no layout do dashboard, não no login nem no modo demo.       */
+.dashboard-bg {
+  background-image: url('/brand/dashboard-background.png');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+/* Sobreposição escura suave — preserva contraste e legibilidade */
+.dashboard-bg::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 11, 18, 0.72);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Conteúdo acima da sobreposição */
+.dashboard-bg > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Mobile: background-attachment: fixed causa problema em iOS Safari */
+@media (max-width: 768px) {
+  .dashboard-bg {
+    background-attachment: scroll;
+  }
+}

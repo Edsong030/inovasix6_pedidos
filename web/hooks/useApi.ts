@@ -16,6 +16,47 @@ function ok<T>(data: T) {
 // ─── API surface usada pelas páginas ─────────────────────────────────────────
 export const dataApi = {
 
+  // Upload de imagem de produto (apenas disponível fora do modo demo)
+  uploadProductImage: async (file: File): Promise<string> => {
+    if (IS_DEMO) throw new Error('DEMO_MODE')
+    const form = new FormData()
+    form.append('file', file)
+    // Usar fetch diretamente para multipart/form-data (axios adiciona boundary automático com fetch também)
+    const token = (await import('js-cookie')).default.get('token')
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
+    const res = await fetch(`${apiUrl}/uploads/products`, {
+      method:  'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body:    form,
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body?.message || `Erro ${res.status} no upload`)
+    }
+    const data = await res.json()
+    return data.url as string
+  },
+
+  // Upload de vídeo de produto (apenas disponível fora do modo demo)
+  uploadProductVideo: async (file: File): Promise<string> => {
+    if (IS_DEMO) throw new Error('DEMO_MODE')
+    const form = new FormData()
+    form.append('file', file)
+    const token = (await import('js-cookie')).default.get('token')
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
+    const res = await fetch(`${apiUrl}/uploads/products/videos`, {
+      method:  'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body:    form,
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body?.message || `Erro ${res.status} no upload de video`)
+    }
+    const data = await res.json()
+    return data.url as string
+  },
+
   // Dashboard
   getDashboard: () =>
     IS_DEMO

@@ -1,10 +1,20 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Serve pasta uploads/ como arquivos estáticos via Express nativo
+  // GET http://localhost:3001/uploads/products/arquivo.jpg
+  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
+
+  // Limite de body JSON (não afeta multipart — o multer cuida disso)
+  app.use(require('express').json({ limit: '1mb' }));
+  app.use(require('express').urlencoded({ extended: true, limit: '1mb' }));
 
   // CORS para desenvolvimento local
   app.enableCors({

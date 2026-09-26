@@ -52,3 +52,6 @@ api/prisma/migrations/
 web/.next/
 web/out/
 web/node_modules/
+
+# Uploads locais de produtos
+api/uploads/
