@@ -1,11 +1,11 @@
 /**
- * Tipo de negócio escolhido na demo (Restaurante, Lanchonete ou Confeitaria).
+ * Tipo de negócio escolhido na demo (Restaurante, Lanchonete, Confeitaria ou Japonês).
  * Fica só no navegador de quem está vendo a demo; não há banco nem rede.
  */
 import type { BusinessType } from '@/types'
 
 const KEY = 'inovasix-demo-business'
-const VALID: BusinessType[] = ['RESTAURANT', 'SNACK_BAR', 'CONFECTIONERY']
+const VALID: BusinessType[] = ['RESTAURANT', 'SNACK_BAR', 'CONFECTIONERY', 'JAPANESE']
 
 // Vale mesmo quando o navegador bloqueia o armazenamento local
 let current: BusinessType | null = null

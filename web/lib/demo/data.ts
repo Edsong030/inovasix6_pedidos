@@ -4,7 +4,7 @@
  */
 
 import type { AuthUser, BusinessType, Category, Product, Table, Order, DashboardData, SalesReport } from '@/types'
-import { SNACK_BAR_DEMO, CONFECTIONERY_DEMO, type DemoBusinessData } from './businesses'
+import { SNACK_BAR_DEMO, CONFECTIONERY_DEMO, JAPANESE_DEMO, type DemoBusinessData } from './businesses'
 import { getDemoBusinessType } from './businessType'
 
 // ─── Usuário demo ──────────────────────────────────────────────────────────────
@@ -253,6 +253,7 @@ const DEMO_DATASETS: Record<BusinessType, DemoBusinessData> = {
   RESTAURANT:    RESTAURANT_DEMO,
   SNACK_BAR:     SNACK_BAR_DEMO,
   CONFECTIONERY: CONFECTIONERY_DEMO,
+  JAPANESE:      JAPANESE_DEMO,
 }
 
 export function getDemoDataset(type: BusinessType = getDemoBusinessType()): DemoBusinessData {

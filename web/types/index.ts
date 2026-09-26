@@ -2,7 +2,7 @@
 
 export type UserRole = 'ADMIN' | 'MANAGER' | 'ATTENDANT' | 'KITCHEN' | 'DELIVERY'
 
-export type BusinessType = 'RESTAURANT' | 'SNACK_BAR' | 'CONFECTIONERY'
+export type BusinessType = 'RESTAURANT' | 'SNACK_BAR' | 'CONFECTIONERY' | 'JAPANESE'
 
 /** Unidade de venda do produto: por unidade, por quilo ou por cento. */
 export type SaleUnit = 'UNIT' | 'KG' | 'HUNDRED'
@@ -37,6 +37,7 @@ export const BUSINESS_TYPE_LABEL: Record<BusinessType, string> = {
   RESTAURANT:    'Restaurante',
   SNACK_BAR:     'Lanchonete',
   CONFECTIONERY: 'Confeitaria',
+  JAPANESE:      'Japonês',
 }
 
 export const SALE_UNIT_LABEL: Record<SaleUnit, string> = {

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Eye, EyeOff, UtensilsCrossed, Sandwich, CakeSlice } from 'lucide-react'
+import { Eye, EyeOff, UtensilsCrossed, Sandwich, CakeSlice, Fish } from 'lucide-react'
 import { AuthProvider, useAuth } from '@/hooks/useAuth'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { InovasixLogo } from '@/components/brand/InovasixLogo'
@@ -17,9 +17,10 @@ const DEMO_ICON: Record<BusinessType, React.ElementType> = {
   RESTAURANT:    UtensilsCrossed,
   SNACK_BAR:     Sandwich,
   CONFECTIONERY: CakeSlice,
+  JAPANESE:      Fish,
 }
 
-/** Demo: escolha entre Restaurante, Lanchonete e Confeitaria (tudo local, sem banco). */
+/** Demo: escolha entre Restaurante, Lanchonete, Confeitaria e Japonês (tudo local, sem banco). */
 function DemoBusinessPicker() {
   const [selected, setSelected] = useState<BusinessType>('RESTAURANT')
   useEffect(() => { setSelected(getDemoBusinessType()) }, [])
@@ -27,7 +28,7 @@ function DemoBusinessPicker() {
   return (
     <fieldset className="mb-6">
       <legend className="text-sm font-medium text-gray-300 mb-2">Escolha a demonstração</legend>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {BUSINESS_TYPES.map(t => {
           const Icon = DEMO_ICON[t]
           const active = selected === t
