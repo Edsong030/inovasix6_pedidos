@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Plus, Trash2, Search, Loader2, CalendarClock } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
+import { DateTimePicker } from '@/components/ui/DateTimePicker'
 import { dataApi } from '@/hooks/useApi'
 import { useBusiness } from '@/hooks/useBusiness'
 import { formatCurrency, cn } from '@/lib/utils'
@@ -258,11 +259,10 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
                 </p>
               )}
               {isPreorder && (
-                <input
-                  type="datetime-local"
-                  {...register('scheduledFor')}
+                <DateTimePicker
+                  value={watch('scheduledFor')}
+                  onChange={v => setValue('scheduledFor', v, { shouldDirty: true })}
                   min={minSchedule}
-                  className="input text-sm [color-scheme:dark]"
                   aria-label="Data e hora de retirada ou entrega"
                 />
               )}
