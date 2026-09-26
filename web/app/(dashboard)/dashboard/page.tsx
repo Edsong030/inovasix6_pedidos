@@ -315,7 +315,7 @@ export default function DashboardPage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
         <KpiCard
           label="Pedidos hoje"
           value={fmtInt(cur.orders)}
@@ -373,7 +373,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="relative h-[260px]">
+          <div className="relative h-[200px] md:h-[260px]">
             <ResponsiveContainer width="100%" height="100%">
               {chartMode === 'orders' ? (
                 <BarChart data={hourly} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -453,7 +453,7 @@ export default function DashboardPage() {
           {recent.length === 0 ? (
             <p className="text-gray-500 text-sm text-center py-10">Nenhum pedido hoje.</p>
           ) : (
-            <div className="overflow-x-auto -mx-5">
+            <div className="hidden md:block overflow-x-auto -mx-5">
               <table className="w-full text-sm min-w-[640px]">
                 <thead>
                   <tr className="border-b border-white/5 text-xs text-gray-500">
@@ -509,6 +509,57 @@ export default function DashboardPage() {
                 </tbody>
               </table>
             </div>
+          )}
+
+          {/* Mobile: lista em cartões no lugar da tabela */}
+          {recent.length > 0 && (
+            <ul className="md:hidden -mx-5 divide-y divide-white/5 border-t border-white/5">
+              {recent.map(o => {
+                const isLate  = lateIds.has(o.id)
+                const active  = !['DELIVERED', 'CANCELLED'].includes(o.status)
+                const minutes = minutesSince(o.createdAt, now)
+                return (
+                  <li key={o.id}>
+                    <Link
+                      href={`/orders?status=${o.status}`}
+                      aria-label={`Ver pedido #${o.orderNumber}`}
+                      className={cn(
+                        'flex items-start gap-3 px-5 py-3 transition-colors',
+                        isLate ? 'bg-amber-500/[0.06] border-l-2 border-amber-400' : 'active:bg-white/[0.03]',
+                      )}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <p className="min-w-0 truncate text-sm">
+                            <span className={cn('font-bold', isLate ? 'text-amber-300' : 'text-white')}>#{o.orderNumber}</span>
+                            <span className="text-white font-medium"> · {o.customerName || (o.table ? `Mesa ${o.table.number}` : 'Sem nome')}</span>
+                          </p>
+                          <p className="flex-shrink-0 text-sm font-semibold text-white tabular-nums">{formatCurrency(Number(o.total))}</p>
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          <OriginBadge channel={o.channel} />
+                          <StatusBadge status={o.status} />
+                        </div>
+                        <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-400">
+                          <span className="tabular-nums">{formatTime(o.createdAt)}</span>
+                          {active && (
+                            <span className={cn('inline-flex items-center gap-1', isLate && 'text-amber-300')}>
+                              <Timer size={11} /> há {minutes} min
+                            </span>
+                          )}
+                          {o.scheduledFor && (
+                            <span className="inline-flex items-center gap-1 text-violet-300">
+                              <CalendarClock size={11} /> {new Date(o.scheduledFor).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <ChevronRight size={16} className="mt-0.5 flex-shrink-0 text-gray-600" />
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
           )}
         </div>
 

@@ -92,7 +92,7 @@ function LoginForm() {
         </div>
 
         {/* Card de login */}
-        <div className="card p-8">
+        <div className="card p-8 max-sm:p-5">
           <h2 className="text-xl font-semibold text-white mb-6">Entrar na plataforma</h2>
 
           {IS_DEMO && <DemoBusinessPicker />}

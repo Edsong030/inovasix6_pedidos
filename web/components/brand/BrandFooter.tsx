@@ -3,7 +3,7 @@ import { asset } from '@/lib/asset'
 
 export function BrandFooter() {
   return (
-    <footer className="flex items-center justify-between px-6 py-3 border-t border-card-border mt-auto no-print">
+    <footer className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-6 max-md:px-4 py-3 border-t border-card-border mt-auto no-print">
       <InovasixLogo size="xs" />
       <p className="text-xs text-gray-600">
         © {new Date().getFullYear()} · Todos os direitos reservados

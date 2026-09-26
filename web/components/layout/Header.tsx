@@ -11,12 +11,13 @@ interface HeaderProps {
 
 export function Header({ title, subtitle, actions, onRefresh }: HeaderProps) {
   return (
-    <div className="flex items-center justify-between mb-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">{title}</h1>
+    // No mobile as ações quebram para a linha de baixo em vez de espremer o título
+    <div className="flex flex-wrap items-center justify-between gap-3 mb-5 md:mb-6">
+      <div className="min-w-0">
+        <h1 className="text-xl md:text-2xl font-bold text-white">{title}</h1>
         {subtitle && <p className="text-gray-400 text-sm mt-0.5">{subtitle}</p>}
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 max-md:ml-auto">
         {onRefresh && (
           <button
             onClick={onRefresh}

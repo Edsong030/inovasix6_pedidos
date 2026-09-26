@@ -92,7 +92,8 @@ export default function OrdersPage() {
       />
 
       {/* Status tabs */}
-      <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
+      {/* Abaixo de 1024px as abas quebram linha em vez de rolar para o lado */}
+      <div className="flex flex-wrap lg:flex-nowrap items-center gap-2 mb-4 lg:overflow-x-auto pb-1">
         {STATUS_TABS.map(({ value, label }) => {
           const count = value === 'active' ? activeCount : (counts[value] || 0)
           return (
@@ -117,9 +118,9 @@ export default function OrdersPage() {
       </div>
 
       {/* Channel filter */}
-      <div className="flex items-center gap-2 mb-5">
-        <Filter size={14} className="text-gray-500" />
-        <div className="flex gap-1.5 overflow-x-auto">
+      <div className="flex items-start lg:items-center gap-2 mb-5">
+        <Filter size={14} className="text-gray-500 flex-shrink-0 max-lg:mt-1.5" />
+        <div className="flex flex-wrap lg:flex-nowrap gap-1.5 lg:overflow-x-auto">
           {[['all', 'Todos'], ...Object.entries(ORDER_CHANNEL_LABEL)].map(([v, l]) => (
             <button
               key={v}

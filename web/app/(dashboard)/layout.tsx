@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { AuthProvider, useAuth } from '@/hooks/useAuth'
-import { Sidebar } from '@/components/layout/Sidebar'
+import { Sidebar, MobileNav } from '@/components/layout/Sidebar'
 import { TechBackdrop } from '@/components/layout/TechBackdrop'
 import { PageLoader } from '@/components/ui/LoadingSpinner'
 import { BrandFooter } from '@/components/brand'
@@ -27,10 +27,16 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const plainBackground = ['/dashboard', '/reports'].some(p => pathname?.startsWith(p))
 
   return (
-    <div className="flex h-screen overflow-hidden relative" style={plainBackground ? { background: '#081030' } : undefined}>
+    // Desktop (≥1024px): sidebar fixa e rolagem dentro do <main>.
+    // Abaixo disso: cabeçalho mobile + drawer e rolagem normal da página, sem rolagem horizontal.
+    <div
+      className="relative min-h-screen max-lg:overflow-x-clip lg:flex lg:h-screen lg:overflow-hidden"
+      style={plainBackground ? { background: '#081030' } : undefined}
+    >
       {/* Fundo tecnológico cobre a tela toda (aparece também atrás da sidebar) */}
       {plainBackground && <TechBackdrop />}
       <Sidebar />
+      <MobileNav />
 
       {/*
         Área de conteúdo com fundo visual.
@@ -39,7 +45,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
         - Sobreposição escura via pseudo-elemento ::before emulado com div absoluto
       */}
       <div
-        className="flex-1 flex flex-col overflow-hidden relative"
+        className="flex-1 flex flex-col relative min-w-0 max-lg:min-h-[calc(100vh-3.5rem)] lg:overflow-hidden"
         style={plainBackground ? undefined : {
           backgroundImage:    `url('${bgUrl}')`,
           backgroundSize:     'cover',
@@ -63,9 +69,9 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
         )}
 
         {/* Conteúdo acima da sobreposição */}
-        <main className="flex-1 overflow-y-auto relative" style={{ zIndex: 1 }}>
+        <main className="flex-1 lg:overflow-y-auto relative" style={{ zIndex: 1 }}>
           {/* key: ao trocar o tipo de negócio a página é remontada e recarrega os dados */}
-          <div key={user.businessType ?? 'RESTAURANT'} className="p-6 max-w-[1400px] mx-auto">{children}</div>
+          <div key={user.businessType ?? 'RESTAURANT'} className="p-4 md:p-6 max-w-[1400px] mx-auto">{children}</div>
         </main>
         <div className="relative" style={{ zIndex: 1 }}>
           <BrandFooter />

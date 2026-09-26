@@ -69,7 +69,7 @@ export function DateTimePicker({ value, onChange, min, placeholder = 'Selecionar
 
       {open && (
         <div className="rounded-xl border border-card-border bg-surface-50 p-3 space-y-3">
-          <div className="grid grid-cols-[1fr_auto] gap-2">
+          <div className="grid grid-cols-[1fr_auto] max-sm:grid-cols-1 gap-2">
             <div>
               <label className="block text-xs text-gray-400 mb-1">Data</label>
               <input

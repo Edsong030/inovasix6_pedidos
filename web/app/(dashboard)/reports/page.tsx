@@ -213,6 +213,16 @@ export default function ReportsPage() {
   const business = useBusiness()
   const [tab, setTab] = useState<'sales' | 'history'>('sales')
 
+  // Abaixo de 768px o gráfico usa menos rótulos e eixo Y mais estreito
+  const [narrow, setNarrow] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const update = () => setNarrow(mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
+
   // Período
   const [preset,    setPreset]    = useState<Preset>('month')
   const [startDate, setStartDate] = useState(() => presetRange('month')[0])
@@ -339,17 +349,17 @@ export default function ReportsPage() {
       <Header title="Relatórios" subtitle={`Acompanhe vendas, formas de pagamento e canais ${business.ofYourBusiness}`} />
 
       {/* Abas */}
-      <div className="flex flex-wrap gap-1 mb-5 p-1 rounded-xl w-fit border panel-tech print:hidden">
-        {([['sales', 'Relatório de Vendas', TrendingUp], ['history', 'Histórico de Pedidos', ShoppingBag]] as const).map(([v, l, Icon]) => (
+      <div className="flex flex-wrap gap-1 mb-5 p-1 rounded-xl w-fit max-md:w-full border panel-tech print:hidden">
+        {([['sales', 'Relatório de Vendas', 'Vendas', TrendingUp], ['history', 'Histórico de Pedidos', 'Histórico', ShoppingBag]] as const).map(([v, l, short, Icon]) => (
           <button
             key={v}
             onClick={() => switchTab(v)}
             className={cn(
-              'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap',
+              'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap max-md:flex-1 max-md:justify-center',
               tab === v ? 'bg-brand-600 text-white shadow-glow' : 'text-gray-400 hover:text-white hover:bg-white/5',
             )}
           >
-            <Icon size={15} /> {l}
+            <Icon size={15} /> <span className="md:hidden">{short}</span><span className="max-md:hidden">{l}</span>
           </button>
         ))}
       </div>
@@ -377,21 +387,21 @@ export default function ReportsPage() {
                 ))}
               </div>
 
-              <div className="flex flex-wrap items-end gap-3 xl:ml-auto">
-                <div>
+              <div className="flex flex-wrap items-end gap-3 xl:ml-auto max-md:grid max-md:grid-cols-2 max-md:w-full max-[359px]:grid-cols-1">
+                <div className="min-w-0">
                   <label htmlFor="rep-start" className="block text-xs font-medium text-gray-400 mb-1">Data inicial</label>
                   <input
                     id="rep-start" type="date" value={startDate} max={endDate || todayStr}
                     onChange={e => { setPreset('custom'); setStartDate(e.target.value) }}
-                    className="input text-sm w-[10.5rem] bg-[#0c1330] [color-scheme:dark]"
+                    className="input text-sm w-[10.5rem] max-md:w-full bg-[#0c1330] [color-scheme:dark]"
                   />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <label htmlFor="rep-end" className="block text-xs font-medium text-gray-400 mb-1">Data final</label>
                   <input
                     id="rep-end" type="date" value={endDate} min={startDate} max={todayStr}
                     onChange={e => { setPreset('custom'); setEndDate(e.target.value) }}
-                    className="input text-sm w-[10.5rem] bg-[#0c1330] [color-scheme:dark]"
+                    className="input text-sm w-[10.5rem] max-md:w-full bg-[#0c1330] [color-scheme:dark]"
                   />
                 </div>
               </div>
@@ -428,7 +438,7 @@ export default function ReportsPage() {
               </div>
 
               {/* KPIs */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
                 <KpiCard
                   label="Faturamento"
                   value={formatCurrency(revenue)}
@@ -473,7 +483,7 @@ export default function ReportsPage() {
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
                 <div className={cn(PANEL, 'xl:col-span-2 p-5 min-w-0')}>
                   <SectionTitle title="Faturamento por dia" hint={fmtRange(startDate, endDate)} />
-                  <div className="h-[280px]">
+                  <div className="h-[220px] md:h-[280px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={dayData} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
                         <defs>
@@ -486,13 +496,14 @@ export default function ReportsPage() {
                         <XAxis
                           dataKey="date"
                           tickFormatter={fmtDayMonth}
-                          interval={xInterval}
+                          interval={narrow ? 'preserveStartEnd' : xInterval}
+                          minTickGap={narrow ? 16 : undefined}
                           tick={{ fill: '#94a3b8', fontSize: 11 }}
                           axisLine={false} tickLine={false} tickMargin={8}
                           padding={{ left: 8, right: 8 }}
                         />
                         <YAxis
-                          width={78}
+                          width={narrow ? 60 : 78}
                           tickFormatter={fmtAxisBRL}
                           tick={{ fill: '#94a3b8', fontSize: 11 }}
                           axisLine={false} tickLine={false}
@@ -587,7 +598,7 @@ export default function ReportsPage() {
                   <SectionTitle title="Top 5 produtos" hint="por faturamento no período" />
                   {topProducts.length > 0 ? (
                     <div className="overflow-x-auto -mx-5">
-                      <table className="w-full text-sm min-w-[460px]">
+                      <table className="w-full text-sm md:min-w-[460px]">
                         <thead>
                           <tr className="border-b border-white/5">
                             <th className="text-left py-2.5 pl-5 pr-2 text-xs font-medium text-gray-500 uppercase tracking-wider w-14">#</th>
@@ -638,7 +649,7 @@ export default function ReportsPage() {
             <select
               value={statusFilter}
               onChange={e => { setStatusFilter(e.target.value); loadHistory(1, e.target.value) }}
-              className="input text-sm w-52 bg-[#0c1330]"
+              className="input text-sm w-52 max-md:w-full bg-[#0c1330]"
               aria-label="Filtrar por status"
             >
               <option value="">Todos os status</option>
@@ -650,7 +661,35 @@ export default function ReportsPage() {
 
           {historyLoading ? <PageLoader /> : (
             <>
-              <div className={cn(PANEL, 'overflow-hidden')}>
+              {/* Mobile: cartões no lugar da tabela */}
+              <ul className="md:hidden space-y-3">
+                {history.map(order => (
+                  <li key={order.id} className={cn(PANEL, 'p-4')}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm">
+                          <span className="font-bold text-white">#{order.orderNumber}</span>
+                          <span className="text-gray-300"> · {order.customerName || (order.table ? `Mesa ${order.table.number}` : '—')}</span>
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">{formatDate(order.createdAt)}</p>
+                      </div>
+                      <p className="flex-shrink-0 font-semibold text-white tabular-nums">{formatCurrency(Number(order.total))}</p>
+                    </div>
+                    <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                      <StatusBadge status={order.status} />
+                      <ChannelBadge channel={order.channel} />
+                    </div>
+                    <p className="mt-2 text-xs text-gray-400">
+                      {order.items?.length ?? 0} item(s) · {PAYMENT_LABEL[order.paymentMethod]}
+                    </p>
+                  </li>
+                ))}
+                {history.length === 0 && (
+                  <li className={cn(PANEL, 'py-12 text-center text-sm text-gray-500')}>Nenhum pedido encontrado.</li>
+                )}
+              </ul>
+
+              <div className={cn(PANEL, 'overflow-hidden max-md:hidden')}>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
@@ -686,7 +725,7 @@ export default function ReportsPage() {
               {totalPages > 1 && (
                 <div className="flex justify-center gap-2 mt-4">
                   <button onClick={() => loadHistory(page - 1)} disabled={page <= 1} className="btn-secondary px-3 py-1.5 text-sm disabled:opacity-40">Anterior</button>
-                  <span className="flex items-center px-3 text-sm text-gray-400">Página {page} de {totalPages}</span>
+                  <span className="flex items-center px-3 max-sm:px-1 text-sm text-gray-400 whitespace-nowrap">Página {page} de {totalPages}</span>
                   <button onClick={() => loadHistory(page + 1)} disabled={page >= totalPages} className="btn-secondary px-3 py-1.5 text-sm disabled:opacity-40">Próxima</button>
                 </div>
               )}

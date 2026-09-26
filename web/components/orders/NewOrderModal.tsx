@@ -278,7 +278,8 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
               <label className="block text-xs font-medium text-gray-400 mb-2">Itens do Pedido</label>
               {fields.length === 0 ? (
                 <p className="text-xs text-gray-500 text-center py-4 border border-dashed border-card-border rounded-xl">
-                  Selecione produtos ao lado →
+                  <span className="md:hidden">Selecione produtos abaixo ↓</span>
+                  <span className="max-md:hidden">Selecione produtos ao lado →</span>
                 </p>
               ) : (
                 <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
@@ -449,8 +450,8 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
 
         {/* Footer */}
         <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-card-border">
-          <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
-          <button type="submit" disabled={saving || fields.length === 0} className="btn-primary">
+          <button type="button" onClick={onClose} className="btn-secondary max-sm:flex-1 max-sm:justify-center">Cancelar</button>
+          <button type="submit" disabled={saving || fields.length === 0} className="btn-primary max-sm:flex-1 max-sm:justify-center">
             {saving ? <><Loader2 size={14} className="animate-spin" /> Criando...</> : isPreorder ? 'Registrar encomenda' : 'Criar Pedido'}
           </button>
         </div>
