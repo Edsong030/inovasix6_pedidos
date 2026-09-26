@@ -32,6 +32,9 @@ export function Sidebar() {
   const pathname = usePathname()
   const { user, logout } = useAuth()
 
+  // Dashboard e Relatórios: sidebar levemente translúcida sobre o fundo tecnológico
+  const overTechBackground = ['/dashboard', '/reports'].some(p => pathname.startsWith(p))
+
   const visible = NAV.filter(
     (n) => !n.roles || (user && n.roles.includes(user.role)),
   )
@@ -44,10 +47,10 @@ export function Sidebar() {
         minWidth: 280,
         // Fundo próprio com leve blur — não usa opacity no pai
         // para não escurecer logo, textos e ícones
-        background: 'rgba(13, 18, 35, 0.96)',
-        backdropFilter: 'blur(14px)',
-        WebkitBackdropFilter: 'blur(14px)',
-        borderRight: '1px solid rgba(99, 102, 241, 0.18)',
+        background: overTechBackground ? 'rgba(7, 12, 34, 0.7)' : 'rgba(13, 18, 35, 0.96)',
+        backdropFilter: overTechBackground ? 'blur(1px)' : 'blur(14px)',
+        WebkitBackdropFilter: overTechBackground ? 'blur(1px)' : 'blur(14px)',
+        borderRight: overTechBackground ? '1px solid rgba(96, 136, 255, 0.25)' : '1px solid rgba(99, 102, 241, 0.18)',
       }}
     >
 

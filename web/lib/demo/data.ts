@@ -193,9 +193,140 @@ export function buildDemoDashboard(orders: Order[]): DashboardData {
   }
 }
 
+// ─── Histórico demo (dias anteriores) ──────────────────────────────────────────
+// Pedidos gerados de forma determinística (semente = data), para que os
+// relatórios tenham dados em qualquer período dos últimos meses e sejam
+// sempre os mesmos a cada recarga.
+const HISTORY_DAYS = 120
+
+/** Data local no formato YYYY-MM-DD (sem conversão para UTC). */
+export function toLocalYMD(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function seededRandom(seed: string) {
+  let a = 2166136261
+  for (let i = 0; i < seed.length; i++) a = Math.imul(a ^ seed.charCodeAt(i), 16777619)
+  return () => {
+    a = (a + 0x6d2b79f5) | 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+function pickWeighted<T>(rnd: () => number, entries: Array<[T, number]>): T {
+  const total = entries.reduce((s, [, w]) => s + w, 0)
+  let r = rnd() * total
+  for (const [v, w] of entries) {
+    if ((r -= w) < 0) return v
+  }
+  return entries[entries.length - 1][0]
+}
+
+const CUSTOMER_NAMES = [
+  'Ana Souza', 'Bruno Lima', 'Carla Mendes', 'Diego Rocha', 'Elaine Castro', 'Felipe Nunes',
+  'Gabriela Reis', 'Henrique Dias', 'Isabela Pinto', 'Lucas Martins', 'Mariana Lopes', 'Rafael Gomes',
+]
+
+let historyCache: Order[] | null = null
+
+export function getDemoHistoryOrders(): Order[] {
+  if (historyCache) return historyCache
+
+  const out: Order[] = []
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const available  = DEMO_PRODUCTS.filter(p => p.available)
+  const drinks     = available.filter(p => p.categoryId === 'cat-5')
+  const dishes     = available.filter(p => p.categoryId !== 'cat-5')
+  const dineTables = DEMO_TABLES.filter(t => /^\d+$/.test(t.number))
+
+  for (let back = HISTORY_DAYS; back >= 1; back--) {
+    const day = new Date(today)
+    day.setDate(day.getDate() - back)
+    const key = toLocalYMD(day)
+    const rnd = seededRandom(key)
+
+    const dow     = day.getDay()
+    const weekend = dow === 5 || dow === 6 ? 1.4 : dow === 0 ? 1.25 : 1
+    const trend   = 1 + ((HISTORY_DAYS - back) / HISTORY_DAYS) * 0.2
+    const count   = Math.round((14 + rnd() * 9) * weekend * trend)
+
+    for (let i = 0; i < count; i++) {
+      const channel = pickWeighted<Order['channel']>(rnd, [['DINE_IN', 40], ['DELIVERY', 30], ['COUNTER', 15], ['TAKEOUT', 15]])
+      const payment = pickWeighted<Order['paymentMethod']>(rnd, [['PIX', 46], ['CARD', 40], ['CASH', 14]])
+
+      const chosen = new Map<string, number>()
+      const nDishes = 1 + Math.floor(rnd() * 2.4)
+      for (let k = 0; k < nDishes; k++) {
+        const p = dishes[Math.floor(rnd() * dishes.length)]
+        chosen.set(p.id, (chosen.get(p.id) ?? 0) + 1)
+      }
+      if (rnd() < 0.75) {
+        const d = drinks[Math.floor(rnd() * drinks.length)]
+        chosen.set(d.id, (chosen.get(d.id) ?? 0) + 1 + Math.floor(rnd() * 2))
+      }
+
+      const items = Array.from(chosen.entries()).map(([pid, qty], idx) => {
+        const p = DEMO_PRODUCTS.find(x => x.id === pid)!
+        return {
+          id: `h-${key}-${i}-${idx}`, productId: p.id, productName: p.name,
+          quantity: qty, unitPrice: p.price, totalPrice: Math.round(p.price * qty * 100) / 100,
+        }
+      })
+      const subtotal = Math.round(items.reduce((s, it) => s + it.totalPrice, 0) * 100) / 100
+      const discount = rnd() < 0.08 ? 5 : 0
+
+      // Horário entre 11h e 23h, concentrado no almoço e no jantar
+      const created = new Date(day)
+      const hour = rnd() < 0.45 ? 11 + rnd() * 3 : 18 + rnd() * 5
+      created.setMinutes(Math.floor(hour * 60))
+      const done = new Date(created.getTime() + (25 + rnd() * 30) * 60000)
+      const cancelled = rnd() < 0.04
+      const table = channel === 'DINE_IN' ? dineTables[Math.floor(rnd() * dineTables.length)] : null
+
+      out.push({
+        id: `h-${key}-${i}`, orderNumber: i + 1, channel,
+        status: cancelled ? 'CANCELLED' : 'DELIVERED',
+        paymentMethod: payment,
+        customerName: table ? `Mesa ${table.number}` : CUSTOMER_NAMES[Math.floor(rnd() * CUSTOMER_NAMES.length)],
+        subtotal, discount, total: Math.round((subtotal - discount) * 100) / 100,
+        tableId: table?.id, table: table ? { id: table.id, number: table.number } : null,
+        user: { id: 'demo-admin', name: 'Administrador Demo' },
+        items,
+        createdAt: created.toISOString(), updatedAt: done.toISOString(),
+        prepStartedAt: cancelled ? null : created.toISOString(),
+        readyAt:       cancelled ? null : done.toISOString(),
+        deliveredAt:   cancelled ? null : done.toISOString(),
+        cancelledAt:   cancelled ? done.toISOString() : null,
+      })
+    }
+  }
+
+  historyCache = out
+  return out
+}
+
 // ─── Relatório de vendas demo ──────────────────────────────────────────────────
-export function buildDemoSalesReport(orders: Order[]): SalesReport {
-  const finished = orders.filter(o => o.status !== 'CANCELLED')
+/**
+ * Monta o relatório no mesmo formato da API, considerando apenas os pedidos
+ * criados entre startDate e endDate (datas locais, inclusivas).
+ * byDay inclui todos os dias do período, com zero nos dias sem vendas.
+ */
+export function buildDemoSalesReport(orders: Order[], startDate?: string, endDate?: string): SalesReport {
+  const today = toLocalYMD(new Date())
+  const start = startDate || today
+  const end   = endDate   || today
+
+  const finished = orders.filter(o => {
+    if (o.status === 'CANCELLED') return false
+    const day = toLocalYMD(new Date(o.createdAt))
+    return day >= start && day <= end
+  })
   const totalRevenue = finished.reduce((s, o) => s + Number(o.total), 0)
   const totalOrders  = finished.length
   const avgTicket    = totalOrders > 0 ? totalRevenue / totalOrders : 0
@@ -203,6 +334,15 @@ export function buildDemoSalesReport(orders: Order[]): SalesReport {
   const byChannel: Record<string, { count: number; revenue: number }> = {}
   const byPayment:  Record<string, { count: number; revenue: number }> = {}
   const productMap:  Record<string, { name: string; qty: number; revenue: number }> = {}
+  const dayMap:      Record<string, { count: number; revenue: number }> = {}
+
+  // Todos os dias do período, inclusive os sem vendas
+  const cursor = new Date(`${start}T00:00:00`)
+  const last   = new Date(`${end}T00:00:00`)
+  while (cursor <= last) {
+    dayMap[toLocalYMD(cursor)] = { count: 0, revenue: 0 }
+    cursor.setDate(cursor.getDate() + 1)
+  }
 
   finished.forEach(o => {
     byChannel[o.channel]       ??= { count: 0, revenue: 0 }
@@ -213,17 +353,21 @@ export function buildDemoSalesReport(orders: Order[]): SalesReport {
     byPayment[o.paymentMethod].count++
     byPayment[o.paymentMethod].revenue += Number(o.total)
 
+    const day = toLocalYMD(new Date(o.createdAt))
+    dayMap[day] ??= { count: 0, revenue: 0 }
+    dayMap[day].count++
+    dayMap[day].revenue += Number(o.total)
+
     o.items.forEach(item => {
+      if (item.quantity <= 0) return
       productMap[item.productId] ??= { name: item.productName, qty: 0, revenue: 0 }
       productMap[item.productId].qty     += item.quantity
       productMap[item.productId].revenue += Number(item.totalPrice)
     })
   })
 
-  const today = new Date().toISOString().split('T')[0]
-
   return {
-    period:   { start: today, end: today },
+    period:   { start, end },
     summary:  { totalRevenue, totalOrders, avgTicket },
     byChannel,
     byPayment,
@@ -231,6 +375,8 @@ export function buildDemoSalesReport(orders: Order[]): SalesReport {
       .map(([id, v]) => ({ id, ...v }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10),
-    byDay: [{ date: today, count: totalOrders, revenue: totalRevenue }],
+    byDay: Object.entries(dayMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, v]) => ({ date, ...v })),
   }
 }

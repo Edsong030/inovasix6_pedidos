@@ -4,13 +4,23 @@
  * Em modo normal, chama a API real via axios.
  */
 
-import { IS_DEMO, demoStore, buildDemoDashboard, buildDemoSalesReport } from '@/lib/demo'
+import { IS_DEMO, demoStore, buildDemoDashboard, buildDemoSalesReport, getDemoHistoryOrders, toLocalYMD } from '@/lib/demo'
 import api from '@/lib/api'
-import type { OrderStatus, TableStatus } from '@/types'
+import type { Order, OrderStatus, TableStatus } from '@/types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function ok<T>(data: T) {
   return Promise.resolve({ data })
+}
+
+// Relatórios demo: histórico gerado dos dias anteriores + pedidos do dia (store)
+function demoReportOrders(filters?: { status?: string; channel?: string }) {
+  const history = getDemoHistoryOrders().filter(o =>
+    (!filters?.status  || o.status  === filters.status) &&
+    (!filters?.channel || o.channel === filters.channel),
+  )
+  return [...demoStore.getOrders(filters), ...history]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 }
 
 // ─── API surface usada pelas páginas ─────────────────────────────────────────
@@ -68,6 +78,29 @@ export const dataApi = {
     IS_DEMO
       ? ok(demoStore.getOrders({ status: params?.status, channel: params?.channel }))
       : api.get('/orders', { params }),
+
+  /**
+   * Pedidos criados nos dias informados (datas locais YYYY-MM-DD), de qualquer status.
+   * A API filtra `date` em UTC; por isso também busca os dias vizinhos e
+   * refiltra pelo dia local no navegador.
+   */
+  getOrdersForDays: async (days: string[]): Promise<{ data: Order[] }> => {
+    const wanted = new Set(days)
+    const inDays = (o: Order) => wanted.has(toLocalYMD(new Date(o.createdAt)))
+    const byNewest = (a: Order, b: Order) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    if (IS_DEMO) return { data: demoReportOrders().filter(inDays) }
+
+    const shift = (d: string, n: number) => {
+      const x = new Date(`${d}T00:00:00`)
+      x.setDate(x.getDate() + n)
+      return toLocalYMD(x)
+    }
+    const utcDays = Array.from(new Set(days.flatMap(d => [shift(d, -1), d, shift(d, 1)])))
+    const responses = await Promise.all(utcDays.map(date => api.get<Order[]>('/orders', { params: { date } })))
+    const unique = new Map<string, Order>()
+    responses.forEach(r => r.data.forEach(o => unique.set(o.id, o)))
+    return { data: Array.from(unique.values()).filter(inDays).sort(byNewest) }
+  },
 
   getOrder: (id: string) =>
     IS_DEMO
@@ -156,13 +189,13 @@ export const dataApi = {
   // Reports
   getSalesReport: (startDate: string, endDate: string) =>
     IS_DEMO
-      ? ok(buildDemoSalesReport(demoStore.getOrders()))
+      ? ok(buildDemoSalesReport(demoReportOrders(), startDate, endDate))
       : api.get('/reports/sales', { params: { startDate, endDate } }),
 
   getOrderHistory: (page: number, limit: number, filters?: { status?: string; channel?: string }) =>
     IS_DEMO
       ? (() => {
-          const all  = demoStore.getOrders({ status: filters?.status, channel: filters?.channel })
+          const all  = demoReportOrders(filters)
           const from = (page - 1) * limit
           return ok({
             data: all.slice(from, from + limit),

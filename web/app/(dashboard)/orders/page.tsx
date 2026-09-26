@@ -28,6 +28,12 @@ export default function OrdersPage() {
   const [channel,    setChannel]    = useState<string>('all')
   const [showNew,    setShowNew]    = useState(false)
 
+  // Aba inicial via ?status=RECEIVED (links do Dashboard)
+  useEffect(() => {
+    const status = new URLSearchParams(window.location.search).get('status')
+    if (status && STATUS_TABS.some(t => t.value === status)) setTab(status)
+  }, [])
+
   const load = useCallback(async () => {
     try {
       const params: Record<string, string> = {}

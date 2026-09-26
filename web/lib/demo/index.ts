@@ -3,5 +3,5 @@ export { demoStore } from './store'
 export {
   DEMO_USER, DEMO_CREDENTIALS,
   DEMO_CATEGORIES, DEMO_PRODUCTS, DEMO_TABLES, DEMO_ORDERS,
-  buildDemoDashboard, buildDemoSalesReport,
+  buildDemoDashboard, buildDemoSalesReport, getDemoHistoryOrders, toLocalYMD,
 } from './data'

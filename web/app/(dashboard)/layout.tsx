@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { AuthProvider, useAuth } from '@/hooks/useAuth'
 import { Sidebar } from '@/components/layout/Sidebar'
+import { TechBackdrop } from '@/components/layout/TechBackdrop'
 import { PageLoader } from '@/components/ui/LoadingSpinner'
 import { BrandFooter } from '@/components/brand'
 import { asset } from '@/lib/asset'
@@ -11,6 +12,7 @@ import { asset } from '@/lib/asset'
 function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
 
   useEffect(() => {
     if (!isLoading && !user) router.push('/login')
@@ -21,9 +23,13 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
 
   // URL do fundo com basePath correto (funciona local e no GitHub Pages)
   const bgUrl = asset('/brand/dashboard-background.png')
+  // Dashboard e Relatórios usam fundo tecnológico próprio (sem foto)
+  const plainBackground = ['/dashboard', '/reports'].some(p => pathname?.startsWith(p))
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden relative" style={plainBackground ? { background: '#081030' } : undefined}>
+      {/* Fundo tecnológico cobre a tela toda (aparece também atrás da sidebar) */}
+      {plainBackground && <TechBackdrop />}
       <Sidebar />
 
       {/*
@@ -34,7 +40,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
       */}
       <div
         className="flex-1 flex flex-col overflow-hidden relative"
-        style={{
+        style={plainBackground ? undefined : {
           backgroundImage:    `url('${bgUrl}')`,
           backgroundSize:     'cover',
           backgroundPosition: 'center',
@@ -42,17 +48,19 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
           backgroundRepeat:   'no-repeat',
         }}
       >
-        {/* Sobreposição escura suave — opacidade 0.38, sem blur no conteúdo */}
-        <div
-          aria-hidden="true"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(10, 11, 18, 0.38)',
-            pointerEvents: 'none',
-            zIndex: 0,
-          }}
-        />
+        {!plainBackground && (
+          /* Sobreposição escura suave — opacidade 0.38, sem blur no conteúdo */
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(10, 11, 18, 0.38)',
+              pointerEvents: 'none',
+              zIndex: 0,
+            }}
+          />
+        )}
 
         {/* Conteúdo acima da sobreposição */}
         <main className="flex-1 overflow-y-auto relative" style={{ zIndex: 1 }}>
