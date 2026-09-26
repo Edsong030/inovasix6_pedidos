@@ -98,7 +98,7 @@ function ProductMediaCard({ imageUrl, videoUrl, name, className }: {
       {/* Imagem — capa e fallback do vídeo */}
       {!showPlaceholder && showImage && (
         <img
-          src={imageUrl!}
+          src={asset(imageUrl!)}
           alt={name}
           className={cn(
             'w-full h-full object-cover absolute inset-0 transition-opacity duration-300',
@@ -119,7 +119,7 @@ function ProductMediaCard({ imageUrl, videoUrl, name, className }: {
             'w-full h-full object-cover absolute inset-0 transition-opacity duration-300',
             hovered ? 'opacity-100' : 'opacity-0',
           )}
-          src={videoUrl!}
+          src={asset(videoUrl!)}
           muted
           loop
           playsInline
@@ -217,7 +217,7 @@ function ImagePicker({ value, onChange, suggestedUrl }: { value: string; onChang
       {/* Preview */}
       <div className="w-full h-36 rounded-xl overflow-hidden bg-surface-50 border border-card-border relative">
         {preview && !imgError ? (
-          <img src={preview} alt="Preview" className="w-full h-full object-cover" onError={() => setImgError(true)} />
+          <img src={asset(preview)} alt="Preview" className="w-full h-full object-cover" onError={() => setImgError(true)} />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-600">
             <ImageOff size={28} />
@@ -484,7 +484,7 @@ function VideoPicker({ value, onChange }: { value: string; onChange: (url: strin
       {value && (
         <div className="flex items-start gap-3 p-2 bg-surface-50 rounded-xl border border-card-border">
           <video
-            src={value}
+            src={asset(value)}
             className="w-28 h-16 rounded-lg object-cover bg-black flex-shrink-0"
             muted preload="metadata"
             onError={() => setVidError(true)}
