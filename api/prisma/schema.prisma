@@ -14,6 +14,7 @@ enum BusinessType {
   RESTAURANT
   SNACK_BAR
   CONFECTIONERY
+  JAPANESE
 }
 
 model Restaurant {

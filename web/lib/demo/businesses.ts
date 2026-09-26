@@ -1,5 +1,5 @@
 /**
- * Dados demo de Lanchonete e Confeitaria (o Restaurante continua em data.ts).
+ * Dados demo de Lanchonete, Confeitaria e Japonês (o Restaurante continua em data.ts).
  * Tudo fictício e local: sem banco, sem rede, sem credenciais.
  */
 import type { Category, Product, Table, Order, OrderChannel, OrderStatus, PaymentMethod, ProductAddon } from '@/types'
@@ -219,6 +219,81 @@ const CF_ORDERS: Order[] = buildOrders(CF_PRODUCTS, [
     items: [['cf-p-12', 1, { notes: 'Tema: futebol', addonIds: ['topo'] }]] },
 ])
 
+// ═══ JAPONÊS ══════════════════════════════════════════════════════════════════
+
+const TEMAKI_ADDONS: ProductAddon[] = [
+  { id: 'cream',     name: 'Cream cheese',     price: 3 },
+  { id: 'cebolinha', name: 'Cebolinha extra',  price: 1 },
+  { id: 'tare',      name: 'Molho tarê',       price: 2 },
+  { id: 'crispy',    name: 'Crispy de alho-poró', price: 2.5 },
+]
+const JP_OBS = ['Sem cebolinha', 'Sem gergelim', 'Shoyu light', 'Hashi extra', 'Wasabi à parte']
+const COMBO_ADDONS: ProductAddon[] = [
+  { id: 'shoyu',  name: 'Shoyu extra',   price: 1.5 },
+  { id: 'gengibre', name: 'Gengibre extra', price: 1.5 },
+  { id: 'tare',   name: 'Molho tarê',    price: 2 },
+]
+
+const JP_CATEGORIES: Category[] = [
+  cat('jp-cat-1', 'Entradas',           'Para começar',                1, 3),
+  cat('jp-cat-2', 'Sushis e sashimis',  'Niguiri, uramaki e sashimi',  2, 4),
+  cat('jp-cat-3', 'Temakis',            'Cone de alga com arroz',      3, 3),
+  cat('jp-cat-4', 'Combinados',         'Barcas e combinados',         4, 3),
+  cat('jp-cat-5', 'Pratos quentes',     'Yakisoba, lámen e teppan',    5, 3),
+  cat('jp-cat-6', 'Bebidas',            'Chás, refrigerantes e saquê', 6, 4),
+  cat('jp-cat-7', 'Sobremesas',         'Doces japoneses',             7, 2),
+]
+
+function jpProduct(id: string, categoryId: string, name: string, description: string, price: number, extra: Partial<Product> = {}): Product {
+  const c = JP_CATEGORIES.find(x => x.id === categoryId)!
+  return { id, categoryId, name, description, price, available: true, saleUnit: 'UNIT', observationOptions: [], category: { id: c.id, name: c.name }, ...extra }
+}
+
+const JP_PRODUCTS: Product[] = [
+  jpProduct('jp-p-01', 'jp-cat-1', 'Guioza (6 un.)',        'Pastel japonês de carne suína grelhado',       24.9, { addons: [{ id: 'tare', name: 'Molho tarê', price: 2 }], observationOptions: ['Molho à parte', 'Bem tostado'] }),
+  jpProduct('jp-p-02', 'jp-cat-1', 'Sunomono',              'Salada de pepino agridoce com gergelim',       14.9, { observationOptions: ['Sem gergelim', 'Com kani'] }),
+  jpProduct('jp-p-03', 'jp-cat-1', 'Harumaki (4 un.)',      'Rolinho primavera de legumes',                 19.9, { observationOptions: ['Molho agridoce à parte'] }),
+  jpProduct('jp-p-04', 'jp-cat-2', 'Sashimi de Salmão',     '10 fatias de salmão fresco',                   42.9, { observationOptions: ['Wasabi à parte', 'Shoyu light'] }),
+  jpProduct('jp-p-05', 'jp-cat-2', 'Niguiri de Salmão (4 un.)', 'Bolinho de arroz com fatia de salmão',     24.9, { observationOptions: JP_OBS }),
+  jpProduct('jp-p-06', 'jp-cat-2', 'Uramaki Filadélfia (8 un.)', 'Salmão, cream cheese e cebolinha',        29.9, { addons: TEMAKI_ADDONS, observationOptions: JP_OBS }),
+  jpProduct('jp-p-07', 'jp-cat-2', 'Hot Roll (10 un.)',     'Empanado com salmão e cream cheese, molho tarê', 32.9, { addons: TEMAKI_ADDONS, observationOptions: ['Molho tarê à parte', 'Sem cebolinha'] }),
+  jpProduct('jp-p-08', 'jp-cat-3', 'Temaki de Salmão',      'Salmão, arroz e cebolinha',                    29.9, { imageUrl: `${IMG}/temake.jpg`, addons: TEMAKI_ADDONS, observationOptions: JP_OBS }),
+  jpProduct('jp-p-09', 'jp-cat-3', 'Temaki Filadélfia',     'Salmão e cream cheese',                        32.9, { imageUrl: `${IMG}/temake.jpg`, addons: TEMAKI_ADDONS, observationOptions: JP_OBS }),
+  jpProduct('jp-p-10', 'jp-cat-3', 'Temaki Skin',           'Pele de salmão crocante e molho tarê',         24.9, { imageUrl: `${IMG}/temake.jpg`, addons: TEMAKI_ADDONS, observationOptions: JP_OBS }),
+  jpProduct('jp-p-11', 'jp-cat-4', 'Combinado 20 peças',    'Sashimi, niguiri, uramaki e hossomaki',        69.9, { addons: COMBO_ADDONS, observationOptions: ['Sem pele', 'Sem cream cheese', ...JP_OBS] }),
+  jpProduct('jp-p-12', 'jp-cat-4', 'Combinado 40 peças',    'Para 2 pessoas — seleção do sushiman',         129.9, { addons: COMBO_ADDONS, observationOptions: ['Sem pele', 'Sem cream cheese', ...JP_OBS] }),
+  jpProduct('jp-p-13', 'jp-cat-4', 'Barca Festa 80 peças',  'Para 4 a 5 pessoas',                           249.9, { madeToOrder: true, minLeadTimeHours: 24, addons: COMBO_ADDONS, observationOptions: ['Sem pele', 'Sem cream cheese', 'Hashi extra'] }),
+  jpProduct('jp-p-14', 'jp-cat-5', 'Yakisoba de Frango',    'Macarrão, legumes e frango ao molho',          38.9, { addons: [{ id: 'carne', name: 'Trocar por carne', price: 6 }], observationOptions: ['Sem brócolis', 'Molho extra'] }),
+  jpProduct('jp-p-15', 'jp-cat-5', 'Lámen Tonkotsu',        'Caldo de porco, chashu, ovo e cebolinha',      46.9, { addons: [{ id: 'ovo', name: 'Ovo extra', price: 4 }, { id: 'chashu', name: 'Chashu extra', price: 9 }], observationOptions: ['Sem cebolinha', 'Apimentado'] }),
+  jpProduct('jp-p-16', 'jp-cat-5', 'Teppan de Salmão',      'Salmão grelhado com legumes na chapa',         56.9, { observationOptions: ['Sem shimeji', 'Molho à parte'] }),
+  jpProduct('jp-p-17', 'jp-cat-6', 'Chá Verde Gelado',      '400 ml',                                       9,    { observationOptions: ['Sem açúcar'] }),
+  jpProduct('jp-p-18', 'jp-cat-6', 'Refrigerante lata',     '350 ml',                                       6,    { imageUrl: `${IMG}/refrigerante-cola.webp` }),
+  jpProduct('jp-p-19', 'jp-cat-6', 'Saquê (dose)',          '100 ml, quente ou gelado',                     14,   { observationOptions: ['Quente', 'Gelado'] }),
+  jpProduct('jp-p-20', 'jp-cat-6', 'Água Mineral',          '500 ml com ou sem gás',                        4,    { imageUrl: `${IMG}/agua-mineral.jpg` }),
+  jpProduct('jp-p-21', 'jp-cat-7', 'Harumaki de Banana',    'Com canela e sorvete de creme',                18.9),
+  jpProduct('jp-p-22', 'jp-cat-7', 'Mochi (2 un.)',         'Morango ou chá verde',                         16.9, { observationOptions: ['Morango', 'Chá verde'] }),
+]
+
+const JP_TABLES: Table[] = ['01', '02', '03', '04', '05', '06'].map((number, i) => ({
+  id: `jp-t-${i + 1}`, number, capacity: 4, status: 'AVAILABLE' as const, orders: [],
+}))
+
+const JP_ORDERS: Order[] = buildOrders(JP_PRODUCTS, [
+  { id: 'jp-o-1', n: 1, channel: 'DINE_IN',  status: 'PREPARING', pay: 'CARD', customer: 'Mesa 03', minutesAgo: 12, table: JP_TABLES[2],
+    items: [['jp-p-11', 1, { notes: 'Sem pele', addonIds: ['tare'] }], ['jp-p-01', 1], ['jp-p-17', 2]] },
+  { id: 'jp-o-2', n: 2, channel: 'IFOOD',    status: 'RECEIVED',  pay: 'PIX',  customer: 'Cliente iFood', minutesAgo: 3, externalRef: 'IFD-7730',
+    address: 'Rua Tokyo, 58 - Liberdade', items: [['jp-p-08', 2, { notes: 'Sem cebolinha', addonIds: ['cream'] }], ['jp-p-07', 1]] },
+  { id: 'jp-o-3', n: 3, channel: 'DELIVERY', status: 'OUT_FOR_DELIVERY', pay: 'CARD', customer: 'Paula Tanaka', minutesAgo: 38,
+    address: 'Av. Paulista, 1200 - Apto 82', items: [['jp-p-12', 1, { notes: 'Hashi extra', addonIds: ['shoyu'] }], ['jp-p-18', 2]] },
+  { id: 'jp-o-4', n: 4, channel: 'TAKEOUT',  status: 'READY',     pay: 'PIX',  customer: 'Bruno Sato', minutesAgo: 20,
+    items: [['jp-p-15', 1, { notes: 'Apimentado', addonIds: ['ovo'] }], ['jp-p-02', 1]] },
+  { id: 'jp-o-5', n: 5, channel: 'WHATSAPP', status: 'RECEIVED',  pay: 'PIX',  customer: 'Renata Ito', minutesAgo: 30, phone: '(11) 95555-8080',
+    scheduledInHours: 26, notes: 'Aniversário — retirada na loja',
+    items: [['jp-p-13', 1, { notes: 'Sem cream cheese · Hashi extra' }]] },
+  { id: 'jp-o-6', n: 6, channel: 'DINE_IN',  status: 'DELIVERED', pay: 'CASH', customer: 'Mesa 01', minutesAgo: 70, table: JP_TABLES[0],
+    items: [['jp-p-14', 2], ['jp-p-19', 2, { notes: 'Quente' }], ['jp-p-22', 1, { notes: 'Chá verde' }]] },
+])
+
 // ─── Exportação ───────────────────────────────────────────────────────────────
 export interface DemoBusinessData {
   restaurantName: string
@@ -267,5 +342,20 @@ export const CONFECTIONERY_DEMO: DemoBusinessData = {
     baseOrders: 11, variation: 8,
     hours: [[9, 4], [14, 5]],
     drinkCategoryIds: ['cf-cat-6'],
+  },
+}
+
+export const JAPANESE_DEMO: DemoBusinessData = {
+  restaurantName: 'Japonês Demo',
+  categories: JP_CATEGORIES,
+  products: JP_PRODUCTS,
+  tables: JP_TABLES,
+  orders: JP_ORDERS,
+  history: {
+    seedPrefix: 'japanese',
+    channels: [['DELIVERY', 30], ['IFOOD', 28], ['DINE_IN', 22], ['TAKEOUT', 12], ['WHATSAPP', 8]],
+    baseOrders: 18, variation: 10,
+    hours: [[11, 3], [18, 5]],
+    drinkCategoryIds: ['jp-cat-6'],
   },
 }

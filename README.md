@@ -141,6 +141,7 @@ A demo roda 100% no navegador: sem API, sem banco e sem segredos. No login, esco
 | **Restaurante Demo** | Entradas, Pratos principais, Pizzas, Lanches, Bebidas e Sobremesas            |
 | **Lanchonete Demo**  | Hambúrgueres, Hot dogs, Porções, Combos, Açaí, Bebidas e Sobremesas, com adicionais e observações (ponto da carne, sem cebola, molho extra) |
 | **Confeitaria Demo** | Bolos, Tortas, Doces, Salgados, Kits e Bebidas, com venda por kg e por cento e encomendas com prazo mínimo |
+| **Japonês Demo**     | Entradas, Sushis e sashimis, Temakis, Combinados, Pratos quentes, Bebidas e Sobremesas, com adicionais (cream cheese, tarê) e observações (sem cebolinha, shoyu light) |
 
 Cada demonstração tem cardápio, pedidos do dia, Dashboard e Relatórios próprios (histórico de 120 dias gerado localmente). A escolha fica salva só no navegador de quem está vendo. As fotos dos produtos são arquivos locais em `web/public/demo/products/images/`.
 
@@ -175,6 +176,7 @@ Cada estabelecimento tem um **tipo de negócio** (`businessType`). O padrão é 
 | Restaurante     | `RESTAURANT`    | Cozinha         | Salão com mesas, delivery e cozinha                          |
 | Lanchonete      | `SNACK_BAR`     | Cozinha         | Combos, adicionais pagos e observações rápidas               |
 | Confeitaria     | `CONFECTIONERY` | **Produção**    | Venda por kg e por cento, produtos sob encomenda             |
+| Japonês         | `JAPANESE`      | Cozinha         | Sushi, temaki, combinados e pratos quentes com adicionais    |
 
 O tipo muda os textos do sistema (menu lateral, Dashboard, fila de preparo, Relatórios) e a ordem das origens no Novo Pedido. Ele **não** troca o cardápio: produtos e categorias continuam sendo os cadastrados no estabelecimento.
 

@@ -1,6 +1,6 @@
 /**
  * Perfil por tipo de negócio: textos e recursos que mudam entre
- * Restaurante, Lanchonete e Confeitaria. O padrão é Restaurante.
+ * Restaurante, Lanchonete, Confeitaria e Restaurante Japonês. O padrão é Restaurante.
  */
 import type { BusinessType, SaleUnit } from '@/types'
 
@@ -53,9 +53,19 @@ export const BUSINESS_PROFILES: Record<BusinessType, BusinessProfile> = {
     tagline: 'Bolos, doces e encomendas por kg ou cento',
     channels: ['COUNTER', 'WHATSAPP', 'TAKEOUT', 'DELIVERY', 'IFOOD', 'DINE_IN'],
   },
+  JAPANESE: {
+    type: 'JAPANESE',
+    label: 'Japonês',
+    demoName: 'Japonês Demo',
+    kitchenLabel: 'Cozinha',
+    inKitchen: 'na cozinha',
+    ofYourBusiness: 'do seu restaurante japonês',
+    tagline: 'Sushi, temaki, combinados e pratos quentes',
+    channels: ['DELIVERY', 'IFOOD', 'DINE_IN', 'TAKEOUT', 'WHATSAPP', 'COUNTER'],
+  },
 }
 
-export const BUSINESS_TYPES: BusinessType[] = ['RESTAURANT', 'SNACK_BAR', 'CONFECTIONERY']
+export const BUSINESS_TYPES: BusinessType[] = ['RESTAURANT', 'SNACK_BAR', 'CONFECTIONERY', 'JAPANESE']
 
 export function getBusinessProfile(type?: BusinessType | null): BusinessProfile {
   return BUSINESS_PROFILES[type ?? 'RESTAURANT'] ?? BUSINESS_PROFILES.RESTAURANT
