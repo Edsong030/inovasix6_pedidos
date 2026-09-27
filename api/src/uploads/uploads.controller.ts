@@ -8,7 +8,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiCookieAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { diskStorage, memoryStorage } from 'multer';
 import { extname, join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
@@ -82,7 +82,7 @@ function makeFilter(allowed: string[], label: string) {
 
 // ─── Controller ───────────────────────────────────────────────────────────────
 @ApiTags('Uploads')
-@ApiBearerAuth()
+@ApiCookieAuth('inx_session')
 @UseGuards(JwtAuthGuard)
 @Controller('uploads')
 export class UploadsController {

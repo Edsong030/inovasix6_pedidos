@@ -21,7 +21,7 @@ Plataforma de gestão de pedidos para **restaurantes, lanchonetes e confeitarias
 |----------|-----------------------------------------------------|
 | Frontend | Next.js 14 + TypeScript + Tailwind CSS              |
 | Backend  | NestJS 11 + Prisma 5.22 + PostgreSQL                |
-| Auth     | JWT (Bearer) + bcryptjs                             |
+| Auth     | Sessão em cookie HttpOnly (JWT validado no banco) + bcryptjs |
 | Docs API | Swagger (`/api/docs`)                               |
 
 ---
@@ -281,7 +281,7 @@ Inovasix Pedidos/
     │   └── useApi.ts             # Roteia chamadas para a API ou para a demo
     ├── lib/
     │   ├── api.ts                # Axios com interceptors JWT
-    │   ├── auth.ts               # Helpers cookie/token
+    │   ├── auth.ts               # Sessão local da demo estática
     │   ├── business.ts           # Textos por tipo de negócio, unidades de venda
     │   ├── demo/                 # Dados e store da demo (3 tipos de negócio)
     │   └── utils.ts              # Formatadores e constantes
@@ -317,15 +317,52 @@ Qualquer etapa → CANCELLED
 
 ---
 
+## Autenticação e sessão (modo API)
+
+- O login grava a sessão no cookie **`inx_session`**: `HttpOnly` (o JavaScript da página não lê), `SameSite=Strict`, `Path=/api` e `Secure` em produção. O token **não** vem no corpo da resposta.
+- Cada requisição confere no banco se a sessão continua válida. **Logout** encerra a sessão atual; **desativar o usuário, trocar a senha ou o papel** encerra todas as sessões dele já na requisição seguinte.
+- `GET /api/auth/me` devolve o usuário da sessão; `POST /api/auth/logout` encerra a sessão e apaga o cookie.
+- **Limite de tentativas:** 5 senhas erradas por IP + e-mail + estabelecimento (e 30 por IP) em 15 min → `429`.
+- **Senhas novas:** mínimo de 10 caracteres, com letras e números. As credenciais de demonstração continuam funcionando (a regra vale para senhas criadas ou trocadas).
+- Requisições que alteram dados vindas de outra origem (`Origin` fora de `FRONTEND_URL`) → `403`.
+
+**Swagger (desenvolvimento):** abra http://localhost:3001/api/docs, execute `POST /api/auth/login` com as credenciais de demonstração e pronto: o navegador guarda o cookie e as próximas chamadas do Swagger já saem autenticadas.
+
+**Linha de comando:**
+
+```bash
+curl -c sessao.txt -H "Content-Type: application/json" \
+  -d '{"email":"admin@inovasix.com","password":"admin123","restaurantSlug":"restaurante-demo"}' \
+  http://localhost:3001/api/auth/login
+curl -b sessao.txt http://localhost:3001/api/auth/me
+curl -b sessao.txt -X POST http://localhost:3001/api/auth/logout
+```
+
+> O arquivo `sessao.txt` contém a sessão: apague-o depois e nunca o versione.
+> A demo estática (GitHub Pages) não usa a API: login local e dados fictícios.
+
+---
+
 ## Perfis de Acesso
 
-| Perfil      | Permissões                                      |
-|-------------|-------------------------------------------------|
-| ADMIN       | Acesso total, inclusive alterar o tipo de negócio |
-| MANAGER     | Tudo exceto operações destrutivas               |
-| ATTENDANT   | Criar pedidos, mesas, cardápio (leitura)        |
-| KITCHEN     | Fila da cozinha/produção, atualizar status      |
-| DELIVERY    | Pedidos delivery, confirmar entrega             |
+A regra fica na API (`api/src/common/permissions.ts`); a interface só esconde o que o perfil não pode fazer.
+
+| Ação | ADMIN | MANAGER | ATTENDANT | KITCHEN | DELIVERY |
+|---|---|---|---|---|---|
+| Criar pedido | sim | sim | sim | não | não |
+| Consultar pedidos | sim | sim | sim | sim | só pedidos de delivery |
+| Recebido → Em preparo → Pronto | sim | sim | sim | sim | não |
+| Pronto → Saiu p/ entrega → Entregue | sim | sim | sim | não | só pedidos de delivery |
+| Cancelar pedido | sim | sim | só "Recebido" | não | não |
+| Faturamento, relatórios e histórico | sim | sim | não | não | não |
+| Cozinha/Produção | sim | sim | sim¹ | sim | não |
+| Mesas: consultar | sim | sim | sim | sim | não |
+| Mesas: alterar status | sim | sim | sim | não | não |
+| Cardápio, cadastro de mesas, configurações | sim | sim | não | não | não |
+| Usuários | todos os papéis | só atendente, cozinha e entregador | não | não | não |
+
+¹ O atendente acompanha a produção para coordenar balcão e salão.
+Ninguém altera o próprio papel nem se desativa, e o último administrador ativo não pode ser removido.
 
 ---
 
@@ -356,8 +393,13 @@ O módulo está preparado e **desativado por padrão**. Para ativar:
 ```env
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/inovasix_pedidos?schema=public"
 JWT_SECRET="troque-por-um-segredo-forte-em-producao"
-JWT_EXPIRES_IN="8h"
+JWT_EXPIRES_IN="8h"          # duração da sessão (cookie e token)
 PORT=3001
+FRONTEND_URL=http://localhost:3000   # origem(ns) do web (CORS e CSRF), separadas por vírgula
+# COOKIE_SAMESITE=strict    # strict (padrão) | lax | none (none exige HTTPS)
+# COOKIE_SECURE=true        # força Secure fora de produção (ex.: dev com HTTPS)
+# COOKIE_DOMAIN=            # só se web e API usarem subdomínios diferentes
+# TRUST_PROXY=1             # atrás de proxy reverso: IP real para o limite de login
 NODE_ENV=development
 ANOTA_AI_ENABLED=false
 ANOTA_AI_WEBHOOK_SECRET=

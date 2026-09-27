@@ -116,7 +116,10 @@ function LoginForm() {
             </p>
           )}
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {/* method="post": se o JavaScript não carregar, o envio nativo do navegador vai no
+              corpo da requisição para a própria rota, nunca com a senha na URL (GET). Com
+              JavaScript, handleSubmit cancela o envio nativo e o login segue pela API. */}
+          <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1.5">Estabelecimento</label>
               <input

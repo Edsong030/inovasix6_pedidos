@@ -1,22 +1,22 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { ApiBadRequestResponse, ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
+import { ApiBadRequestResponse, ApiCookieAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
 import { parseHistoryParams, parseSalesRange } from './report-params';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { FINANCE_ROLES } from '../common/permissions';
 
 @ApiTags('Reports')
-@ApiBearerAuth()
+@ApiCookieAuth('inx_session')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('reports')
 export class ReportsController {
   constructor(private svc: ReportsService) {}
 
   @Get('sales')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(...FINANCE_ROLES)
   @ApiQuery({ name: 'startDate', example: '2026-09-01', required: true })
   @ApiQuery({ name: 'endDate', example: '2026-09-30', required: true })
   @ApiBadRequestResponse({ description: 'Datas ausentes, fora do formato AAAA-MM-DD, inexistentes ou início após o fim' })
@@ -30,6 +30,7 @@ export class ReportsController {
   }
 
   @Get('history')
+  @Roles(...FINANCE_ROLES)
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'status', required: false })

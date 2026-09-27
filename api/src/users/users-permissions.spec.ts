@@ -25,6 +25,7 @@ function fakePrisma(seed: Row[]) {
       }),
     },
     $queryRaw: jest.fn(async () => []),
+    userSession: { updateMany: jest.fn(async () => ({ count: 1 })) },
   };
   client.$transaction = jest.fn(async (fn: (tx: unknown) => unknown) => fn(client));
   return { client, users };
@@ -141,5 +142,38 @@ describe('UsersService — isolamento', () => {
     await expect(svc.update('other-admin', as('admin'), { name: 'x' })).rejects.toBeInstanceOf(NotFoundException);
     await expect(svc.remove('other-admin', as('admin'))).rejects.toBeInstanceOf(NotFoundException);
     expect(users.find((u) => u.id === 'other-admin')!.name).toBe('Admin B');
+  });
+});
+
+describe('UsersService — revogação de sessões', () => {
+  const revokedFor = (client: any) => client.userSession.updateMany.mock.calls.map((c: any[]) => c[0].where.userId);
+
+  it.each([
+    ['troca de senha', { password: 'NovaSenha12345' }],
+    ['troca de papel', { role: KITCHEN }],
+    ['desativação', { active: false }],
+  ])('%s revoga todas as sessões do usuário', async (_, dto) => {
+    const { svc, client } = setup();
+    await svc.update('attendant', as('admin'), dto);
+    expect(revokedFor(client)).toEqual(['attendant']);
+    expect(client.userSession.updateMany.mock.calls[0][0]).toMatchObject({ where: { userId: 'attendant', revokedAt: null } });
+  });
+
+  it('DELETE (desativação) revoga as sessões', async () => {
+    const { svc, client } = setup();
+    await svc.remove('attendant', as('admin'));
+    expect(revokedFor(client)).toEqual(['attendant']);
+  });
+
+  it('editar só nome/e-mail não derruba a sessão', async () => {
+    const { svc, client } = setup();
+    await svc.update('attendant', as('admin'), { name: 'Ana Paula', email: 'ana@a' });
+    expect(client.userSession.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('tentativa proibida não revoga nada', async () => {
+    const { svc, client } = setup();
+    await expect(svc.update('admin', as('manager'), { password: 'Tomada12345' })).rejects.toBeInstanceOf(ForbiddenException);
+    expect(client.userSession.updateMany).not.toHaveBeenCalled();
   });
 });

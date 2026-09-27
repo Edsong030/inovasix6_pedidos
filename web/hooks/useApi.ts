@@ -42,11 +42,11 @@ export const dataApi = {
     const form = new FormData()
     form.append('file', file)
     // Usar fetch diretamente para multipart/form-data (axios adiciona boundary automático com fetch também)
-    const token = (await import('js-cookie')).default.get('token')
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
     const res = await fetch(`${apiUrl}/uploads/products`, {
       method:  'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      // Sessão no cookie HttpOnly: o navegador anexa com credentials: 'include'
+      credentials: 'include',
       body:    form,
     })
     if (!res.ok) {
@@ -62,11 +62,11 @@ export const dataApi = {
     if (IS_DEMO) throw new Error('DEMO_MODE')
     const form = new FormData()
     form.append('file', file)
-    const token = (await import('js-cookie')).default.get('token')
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
     const res = await fetch(`${apiUrl}/uploads/products/videos`, {
       method:  'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      // Sessão no cookie HttpOnly: o navegador anexa com credentials: 'include'
+      credentials: 'include',
       body:    form,
     })
     if (!res.ok) {

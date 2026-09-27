@@ -1,9 +1,15 @@
 import Cookies from 'js-cookie'
 import type { AuthUser } from '@/types'
 
+/**
+ * Cookies legíveis pelo JavaScript: usados SÓ pela demo estática (login local, dados
+ * fictícios, sem API). No modo API a sessão é o cookie HttpOnly da própria API; aqui
+ * apenas apagamos token/user que versões anteriores gravavam (clearAuth).
+ */
 const TOKEN_KEY = 'token'
 const USER_KEY  = 'user'
 
+/** Demo estática: guarda a sessão local. */
 export function saveAuth(token: string, user: AuthUser) {
   Cookies.set(TOKEN_KEY, token, { expires: 1, sameSite: 'strict' })
   Cookies.set(USER_KEY, JSON.stringify(user), { expires: 1, sameSite: 'strict' })

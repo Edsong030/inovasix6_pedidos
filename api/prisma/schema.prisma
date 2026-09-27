@@ -87,9 +87,28 @@ model User {
 
   restaurant Restaurant @relation(fields: [restaurantId], references: [id])
   orders     Order[]
+  sessions   UserSession[]
 
   @@unique([email, restaurantId])
   @@map("users")
+}
+
+/// Sessao de login (cookie HttpOnly). O JWT so carrega o id da sessao; cada requisicao
+/// confere aqui se ela continua valida. Logout revoga a sessao; desativar o usuario,
+/// trocar a senha ou o papel revoga todas as sessoes dele (efeito na requisicao seguinte).
+model UserSession {
+  id           String    @id @default(cuid())
+  userId       String
+  restaurantId String
+  createdAt    DateTime  @default(now())
+  expiresAt    DateTime
+  revokedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("user_sessions")
 }
 
 // ─── Cardápio ────────────────────────────────────────────────────────────────

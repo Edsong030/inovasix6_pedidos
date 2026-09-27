@@ -2,7 +2,7 @@ import {
   Controller, Get, Post, Patch, Delete,
   Param, Body, UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { UsersService, type Actor } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -15,7 +15,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 const actorOf = (u: Actor): Actor => ({ id: u.id, role: u.role, restaurantId: u.restaurantId });
 
 @ApiTags('Users')
-@ApiBearerAuth()
+@ApiCookieAuth('inx_session')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('users')
 export class UsersController {

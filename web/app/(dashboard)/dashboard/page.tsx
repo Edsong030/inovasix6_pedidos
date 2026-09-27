@@ -13,6 +13,7 @@ import {
 } from 'recharts'
 import { dataApi } from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
+import { canSeeFinance } from '@/lib/permissions'
 import { useBusiness } from '@/hooks/useBusiness'
 import { Header } from '@/components/layout/Header'
 import { StatusBadge } from '@/components/ui/Badge'
@@ -149,14 +150,14 @@ function KpiCard({ label, value, icon, iconClass, t, hint }: {
 
 type HourPoint = { hour: number; label: string; count: number; revenue: number }
 
-function HourTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: HourPoint }> }) {
+function HourTooltip({ active, payload, showRevenue = true }: { active?: boolean; payload?: Array<{ payload: HourPoint }>; showRevenue?: boolean }) {
   if (!active || !payload?.length) return null
   const p = payload[0].payload
   return (
     <div style={TOOLTIP_STYLE} className="px-3 py-2">
       <p className="text-xs text-gray-400">{String(p.hour).padStart(2, '0')}h – {String(p.hour + 1).padStart(2, '0')}h</p>
       <p className="text-sm font-semibold text-white mt-0.5">{fmtInt(p.count)} {p.count === 1 ? 'pedido' : 'pedidos'}</p>
-      <p className="text-xs text-gray-300">{formatCurrency(p.revenue)}</p>
+      {showRevenue && <p className="text-xs text-gray-300">{formatCurrency(p.revenue)}</p>}
     </div>
   )
 }
@@ -210,6 +211,8 @@ export default function DashboardPage() {
   if (loading) return <PageLoader />
 
   const can = (roles: UserRole[]) => !!user && roles.includes(user.role)
+  // Faturamento só para ADMIN/MANAGER (a API também restringe relatórios e o resumo)
+  const finance = canSeeFinance(user?.role)
 
   // ─── KPIs ──────────────────────────────────────────────────────────────────
   const nowDate   = new Date(now)
@@ -325,7 +328,7 @@ export default function DashboardPage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
+      <div className={cn('grid grid-cols-1 md:grid-cols-2 gap-4 mb-5', finance ? 'xl:grid-cols-4' : 'xl:grid-cols-3')}>
         <KpiCard
           label="Pedidos hoje"
           value={fmtInt(cur.orders)}
@@ -342,14 +345,14 @@ export default function DashboardPage() {
           t={null}
           hint={late.length ? `${late.length} ${late.length === 1 ? 'atrasado' : 'atrasados'} (passou da previsão)` : `${business.inKitchen} agora`}
         />
-        <KpiCard
+        {finance && <KpiCard
           label="Faturamento"
           value={formatCurrency(cur.revenue)}
           icon={<DollarSign size={20} className="text-emerald-300" />}
           iconClass="bg-emerald-500/15"
           t={trend(cur.revenue, prev?.revenue ?? null)}
           hint="pedidos prontos e entregues"
-        />
+        />}
         <KpiCard
           label="Tempo médio"
           value={formatPrepMinutes(cur.avgMinutes)}
@@ -364,8 +367,8 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-5">
         <div className={cn(PANEL, 'xl:col-span-2 p-5 min-w-0')}>
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <h3 className="text-sm font-semibold text-white">Pedidos e faturamento por hora</h3>
-            <div className="flex gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1" role="tablist" aria-label="Métrica do gráfico">
+            <h3 className="text-sm font-semibold text-white">{finance ? 'Pedidos e faturamento por hora' : 'Pedidos por hora'}</h3>
+            {finance && <div className="flex gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1" role="tablist" aria-label="Métrica do gráfico">
               {([['orders', 'Pedidos', ChartColumn], ['revenue', 'Faturamento', ChartLine]] as const).map(([mode, label, Icon]) => (
                 <button
                   key={mode}
@@ -380,7 +383,7 @@ export default function DashboardPage() {
                   <Icon size={14} /> {label}
                 </button>
               ))}
-            </div>
+            </div>}
           </div>
 
           <div className="relative h-[200px] md:h-[260px]">
@@ -390,7 +393,7 @@ export default function DashboardPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" vertical={false} />
                   <XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={8} />
                   <YAxis hide={chartEmpty} width={36} allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  {!chartEmpty && <Tooltip content={<HourTooltip />} cursor={{ fill: 'rgba(96,136,255,0.08)' }} />}
+                  {!chartEmpty && <Tooltip content={<HourTooltip showRevenue={finance} />} cursor={{ fill: 'rgba(96,136,255,0.08)' }} />}
                   {!chartEmpty && <Bar dataKey="count" fill="#3d5eff" radius={[6, 6, 0, 0]} maxBarSize={28} />}
                 </BarChart>
               ) : (
@@ -404,7 +407,7 @@ export default function DashboardPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" vertical={false} />
                   <XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={8} />
                   <YAxis hide={chartEmpty} width={72} tickFormatter={fmtAxisBRL} tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  {!chartEmpty && <Tooltip content={<HourTooltip />} cursor={{ stroke: 'rgba(96,136,255,0.4)' }} />}
+                  {!chartEmpty && <Tooltip content={<HourTooltip showRevenue={finance} />} cursor={{ stroke: 'rgba(96,136,255,0.4)' }} />}
                   {!chartEmpty && (
                     <Area type="monotone" dataKey="revenue" stroke="#6088ff" strokeWidth={2.5} fill="url(#dashRevFill)"
                       activeDot={{ r: 5, fill: '#6088ff', stroke: '#0b1020', strokeWidth: 2 }} />

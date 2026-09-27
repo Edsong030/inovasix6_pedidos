@@ -20,7 +20,7 @@
     "db:demo-reset": "ts-node prisma/seed.ts --reset",
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset --force",
-    "test": "jest",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",

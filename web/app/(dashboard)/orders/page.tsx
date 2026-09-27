@@ -9,6 +9,8 @@ import { NewOrderModal } from '@/components/orders/NewOrderModal'
 import { PageLoader } from '@/components/ui/LoadingSpinner'
 import { OrdersPausedNotice, useOrdersPaused, PAUSED_TITLE } from '@/components/orders/OrdersPausedNotice'
 import { useServerNow } from '@/hooks/useServerNow'
+import { useAuth } from '@/hooks/useAuth'
+import { canCreateOrder } from '@/lib/permissions'
 import { serverNow } from '@/lib/serverClock'
 import { ORDER_STATUS_LABEL, ORDER_CHANNEL_LABEL } from '@/types'
 import type { Order, OrderStatus, OrderChannel } from '@/types'
@@ -31,6 +33,8 @@ export default function OrdersPage() {
   const [channel,    setChannel]    = useState<string>('all')
   const [showNew,    setShowNew]    = useState(false)
   const paused = useOrdersPaused()
+  // Cozinha e entregador não criam pedidos (a API também recusa)
+  const canCreate = canCreateOrder(useAuth().user?.role)
   // Re-renderiza a cada 30 s; o horário (do servidor) é lido a cada renderização,
   // inclusive logo após recarregar a lista, para a contagem não ficar defasada
   useServerNow()
@@ -92,7 +96,7 @@ export default function OrdersPage() {
         title="Pedidos"
         subtitle={`${filtered.length} pedido${filtered.length !== 1 ? 's' : ''}`}
         onRefresh={load}
-        actions={
+        actions={canCreate && (
           <button
             onClick={() => setShowNew(true)}
             disabled={paused}
@@ -101,10 +105,10 @@ export default function OrdersPage() {
           >
             {paused ? <><CirclePause size={16} /> Pedidos pausados</> : <><Plus size={16} /> Novo Pedido</>}
           </button>
-        }
+        )}
       />
 
-      <OrdersPausedNotice className="mb-4" />
+      {canCreate && <OrdersPausedNotice className="mb-4" />}
 
       {/* Status tabs */}
       {/* Abaixo de 1024px as abas quebram linha em vez de rolar para o lado */}

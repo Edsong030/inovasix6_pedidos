@@ -3,13 +3,15 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto, UpdateOrderStatusDto } from './dto/create-order.dto';
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus, UserRole } from '@prisma/client';
 import { averagePrepMinutes } from './prep-time';
 import { estimateReadyAt } from './order-timing';
 import { readOptionGroups, resolveSelection } from '../products/product-options';
+import { canChangeOrderStatus, canSeeFinance, orderVisibility } from '../common/permissions';
 
 @Injectable()
 export class OrdersService {
@@ -26,7 +28,7 @@ export class OrdersService {
     user: { select: { id: true, name: true } },
   };
 
-  async findAll(restaurantId: string, filters?: { status?: string; channel?: string; date?: string }) {
+  async findAll(restaurantId: string, filters?: { status?: string; channel?: string; date?: string }, role?: UserRole) {
     const where: Record<string, unknown> = { restaurantId };
 
     if (filters?.status) where['status'] = filters.status;
@@ -37,6 +39,8 @@ export class OrdersService {
       next.setDate(next.getDate() + 1);
       where['createdAt'] = { gte: d, lt: next };
     }
+    // DELIVERY: só pedidos do canal DELIVERY (sobrepõe um filtro de canal enviado)
+    if (role) Object.assign(where, orderVisibility(role));
 
     return this.prisma.order.findMany({
       where,
@@ -45,9 +49,10 @@ export class OrdersService {
     });
   }
 
-  async findOne(id: string, restaurantId: string) {
+  /** Sem papel: uso interno. Com papel: pedido fora da visibilidade dele é "não encontrado". */
+  async findOne(id: string, restaurantId: string, role?: UserRole) {
     const order = await this.prisma.order.findFirst({
-      where: { id, restaurantId },
+      where: { id, restaurantId, ...(role && orderVisibility(role)) },
       include: this.orderInclude,
     });
     if (!order) throw new NotFoundException('Pedido não encontrado');
@@ -198,8 +203,12 @@ export class OrdersService {
     });
   }
 
-  async updateStatus(id: string, restaurantId: string, dto: UpdateOrderStatusDto) {
-    const order = await this.findOne(id, restaurantId);
+  async updateStatus(id: string, restaurantId: string, dto: UpdateOrderStatusDto, role: UserRole) {
+    // 404 se o pedido não é do restaurante ou não é visível para o papel (ex.: DELIVERY x balcão)
+    const order = await this.findOne(id, restaurantId, role);
+    if (!canChangeOrderStatus(role, order, dto.status)) {
+      throw new ForbiddenException('Seu perfil não pode levar este pedido a este status');
+    }
 
     const validTransitions: Record<string, OrderStatus[]> = {
       RECEIVED: [OrderStatus.PREPARING, OrderStatus.CANCELLED],
@@ -255,7 +264,8 @@ export class OrdersService {
     return updated;
   }
 
-  async getDashboard(restaurantId: string) {
+  async getDashboard(restaurantId: string, role: UserRole) {
+    const scope = { restaurantId, ...orderVisibility(role) };
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
@@ -269,24 +279,24 @@ export class OrdersService {
     ] = await Promise.all([
       this.prisma.order.count({
         where: {
-          restaurantId,
+          ...scope,
           createdAt: { gte: today, lt: tomorrow },
           status: { not: OrderStatus.CANCELLED },
         },
       }),
       this.prisma.order.count({
-        where: { restaurantId, status: OrderStatus.PREPARING },
+        where: { ...scope, status: OrderStatus.PREPARING },
       }),
       this.prisma.order.aggregate({
         where: {
-          restaurantId,
+          ...scope,
           createdAt: { gte: today, lt: tomorrow },
           status: { in: [OrderStatus.DELIVERED, OrderStatus.READY, OrderStatus.OUT_FOR_DELIVERY] },
         },
         _sum: { total: true },
       }),
       this.prisma.order.findMany({
-        where: { restaurantId, createdAt: { gte: today, lt: tomorrow } },
+        where: { ...scope, createdAt: { gte: today, lt: tomorrow } },
         include: this.orderInclude,
         orderBy: { createdAt: 'desc' },
         take: 10,
@@ -297,7 +307,7 @@ export class OrdersService {
     // null quando não há pedidos válidos — o frontend exibe "—", nunca "0 min".
     const completedToday = await this.prisma.order.findMany({
       where: {
-        restaurantId,
+        ...scope,
         createdAt: { gte: today, lt: tomorrow },
         status: { not: OrderStatus.CANCELLED },
         readyAt: { not: null },
@@ -309,7 +319,8 @@ export class OrdersService {
     return {
       ordersToday,
       inPreparation,
-      revenueToday: Number(revenueToday._sum.total ?? 0),
+      // Faturamento só para ADMIN/MANAGER (demais papéis recebem null)
+      revenueToday: canSeeFinance(role) ? Number(revenueToday._sum.total ?? 0) : null,
       avgPrepTime,
       recentOrders,
     };

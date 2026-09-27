@@ -92,8 +92,9 @@ export class UsersService {
         await this.assertAnotherActiveAdmin(tx, target.id, actor.restaurantId);
       }
 
+      let updated;
       try {
-        return await tx.user.update({
+        updated = await tx.user.update({
           where: { id: target.id, restaurantId: actor.restaurantId },
           data: { ...dto, password },
           select: PUBLIC_USER,
@@ -101,6 +102,9 @@ export class UsersService {
       } catch (e) {
         throw this.uniqueEmail(e);
       }
+      // Senha, papel ou desativação: todas as sessões do usuário caem na requisição seguinte
+      if (password || changesRole || deactivates) await this.revokeSessions(tx, target.id);
+      return updated;
     });
   }
 
@@ -115,12 +119,19 @@ export class UsersService {
       if (target.role === UserRole.ADMIN && target.active) {
         await this.assertAnotherActiveAdmin(tx, target.id, actor.restaurantId);
       }
-      return tx.user.update({
+      const updated = await tx.user.update({
         where: { id: target.id, restaurantId: actor.restaurantId },
         data: { active: false },
         select: PUBLIC_USER,
       });
+      await this.revokeSessions(tx, target.id);
+      return updated;
     });
+  }
+
+  /** Revoga todas as sessões abertas do usuário (efeito imediato: a JwtStrategy confere no banco). */
+  private revokeSessions(tx: Prisma.TransactionClient, userId: string) {
+    return tx.userSession.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
   }
 
   /**

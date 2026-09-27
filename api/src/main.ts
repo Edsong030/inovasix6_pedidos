@@ -13,7 +13,9 @@ async function bootstrap() {
     .setTitle('Inovasix6 Pedidos API')
     .setDescription('API de gestão de pedidos para restaurantes')
     .setVersion('1.0')
-    .addBearerAuth()
+    // Autenticação por cookie HttpOnly: rode POST /api/auth/login no próprio Swagger;
+    // o navegador guarda o cookie inx_session e envia nas chamadas seguintes.
+    .addCookieAuth('inx_session')
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);

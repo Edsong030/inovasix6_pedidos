@@ -2,7 +2,7 @@ import {
   Controller, Post, Get, Body, Headers, Param,
   UseGuards, Logger, HttpCode,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiCookieAuth, ApiOperation } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { AnotaAiService } from './anota-ai.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -57,7 +57,7 @@ export class AnotaAiController {
 
   // Rota autenticada para consultar eventos
   @Get('events')
-  @ApiBearerAuth()
+  @ApiCookieAuth('inx_session')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   getEvents(@CurrentUser() u: any) {
