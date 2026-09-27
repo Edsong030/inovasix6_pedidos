@@ -47,6 +47,18 @@ export function isDefaultBusinessName(name: string): boolean {
   return Object.values(DEFAULT_BUSINESS_NAMES).includes((name ?? '').trim());
 }
 
+/**
+ * Estabelecimentos de demonstração do modo local (prisma/demo-tenants.ts). O tipo de cada
+ * um acompanha o cardápio e os pedidos gravados nele, por isso não pode ser alterado:
+ * para ver outro tipo, entra-se no estabelecimento correspondente (novo login).
+ */
+export const DEMO_TENANT_TYPES: Readonly<Record<string, BusinessType>> = {
+  'restaurante-demo': BusinessType.RESTAURANT,
+  'lanchonete-demo':  BusinessType.SNACK_BAR,
+  'confeitaria-demo': BusinessType.CONFECTIONERY,
+  'japones-demo':     BusinessType.JAPANESE,
+};
+
 /** Valida CNPJ (14 dígitos + dígitos verificadores). */
 export function isValidCnpj(value: string): boolean {
   const d = (value ?? '').replace(/\D/g, '');

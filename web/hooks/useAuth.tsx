@@ -6,7 +6,7 @@ import {
 } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { saveAuth, clearAuth, getStoredUser, getToken } from '@/lib/auth'
+import { saveAuth, clearAuth, clearSession, getStoredUser, getToken } from '@/lib/auth'
 import {
   IS_DEMO, DEMO_CREDENTIALS, DEMO_USER,
   demoStore, getDemoSettings, saveDemoSettings, getDemoBusinessType, saveDemoBusinessType,
@@ -25,6 +25,11 @@ interface AuthContextType {
   logout:    () => void
   /** Troca o tipo de negócio (na demo, troca entre Restaurante/Lanchonete/Confeitaria Demo) */
   setBusinessType: (type: BusinessType) => Promise<void>
+  /**
+   * Modo API: abrir outro estabelecimento exige novo login (novo JWT). Encerra a sessão
+   * atual e leva ao Login com o estabelecimento pré-selecionado.
+   */
+  switchEstablishment: (slug: string) => void
   /** Atualiza dados exibidos do estabelecimento (ex.: nome na sidebar após salvar as configurações) */
   patchUser: (patch: Partial<Pick<AuthUser, 'restaurantName' | 'businessType'>>) => void
 }
@@ -72,12 +77,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // ── Modo normal: chama API real ──
+    // Nada da sessão anterior (token, dados de outro estabelecimento) segue para a nova
+    clearSession()
+    setUser(null)
     try {
       const { data } = await api.post('/auth/login', { email, password, restaurantSlug })
       saveAuth(data.accessToken, data.user)
-      setUser(data.user)
       toast.success(`Bem-vindo, ${data.user.name}!`)
-      router.push('/dashboard')
+      // Navegação completa: o painel começa do zero, só com o novo JWT
+      window.location.assign('/dashboard')
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string | string[] } } })
@@ -88,9 +96,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [router])
 
   const logout = useCallback(() => {
-    clearAuth()
+    if (IS_DEMO) {
+      clearAuth()
+      setUser(null)
+      router.push('/login')
+      return
+    }
+    clearSession()
     setUser(null)
-    router.push('/login')
+    window.location.assign('/login')
   }, [router])
 
   const setBusinessType = useCallback(async (type: BusinessType) => {
@@ -128,6 +142,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user])
 
+  const switchEstablishment = useCallback((slug: string) => {
+    // Sem troca de restaurantId no navegador: o token atual é descartado e só um novo
+    // login no slug escolhido dá acesso aos dados dele. A navegação completa (não SPA)
+    // descarta toda a memória da página: cache, carrinho, fila e estado das telas.
+    if (IS_DEMO) return   // na demo, troca-se o cenário (setBusinessType), sem sair
+    clearSession()
+    setUser(null)
+    window.location.assign(`/login?estabelecimento=${encodeURIComponent(slug)}`)
+  }, [])
+
   const patchUser = useCallback((patch: Partial<Pick<AuthUser, 'restaurantName' | 'businessType'>>) => {
     setUser(prev => {
       if (!prev) return prev
@@ -139,7 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, setBusinessType, patchUser }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, setBusinessType, switchEstablishment, patchUser }}>
       {children}
     </AuthContext.Provider>
   )

@@ -9,7 +9,7 @@ import { AuthProvider, useAuth } from '@/hooks/useAuth'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { InovasixLogo } from '@/components/brand/InovasixLogo'
 import { IS_DEMO, getDemoBusinessType, saveDemoBusinessType } from '@/lib/demo'
-import { BUSINESS_TYPES, getBusinessProfile } from '@/lib/business'
+import { BUSINESS_TYPES, demoEstablishment, getBusinessProfile } from '@/lib/business'
 import { cn } from '@/lib/utils'
 import type { BusinessType } from '@/types'
 
@@ -66,10 +66,23 @@ function LoginForm() {
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading]   = useState(false)
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, setValue, setFocus, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { restaurantSlug: 'restaurante-demo' },
   })
+
+  // Modo API: troca de estabelecimento chega aqui com ?estabelecimento=<slug>.
+  // Só pré-seleciona o slug; o acesso depende de novo login (e-mail e senha).
+  const [switchTo, setSwitchTo] = useState<string | null>(null)
+  useEffect(() => {
+    if (IS_DEMO) return
+    const slug = new URLSearchParams(window.location.search).get('estabelecimento')
+    if (!slug || !/^[a-z0-9][a-z0-9-]{0,62}$/.test(slug)) return
+    setValue('restaurantSlug', slug)
+    setSwitchTo(slug)
+    setFocus('email')
+  }, [setValue, setFocus])
+  const switchName = switchTo ? (demoEstablishment(switchTo) ? getBusinessProfile(demoEstablishment(switchTo)!.type).demoName : switchTo) : null
 
   const onSubmit = async (data: FormData) => {
     setLoading(true)
@@ -96,6 +109,12 @@ function LoginForm() {
           <h2 className="text-xl font-semibold text-white mb-6">Entrar na plataforma</h2>
 
           {IS_DEMO && <DemoBusinessPicker />}
+
+          {switchName && (
+            <p role="status" className="mb-5 rounded-xl border border-brand-500/30 bg-brand-600/10 px-3 py-2.5 text-sm text-gray-200">
+              Sessão encerrada. Entre para acessar <strong className="text-white">{switchName}</strong>.
+            </p>
+          )}
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>

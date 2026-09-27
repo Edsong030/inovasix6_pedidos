@@ -4,7 +4,7 @@
  */
 
 import type { AuthUser, BusinessType, Category, Product, Table, Order, DashboardData, SalesReport } from '@/types'
-import { SNACK_BAR_DEMO, CONFECTIONERY_DEMO, JAPANESE_DEMO, type DemoBusinessData } from './businesses'
+import { SNACK_BAR_DEMO, CONFECTIONERY_DEMO, JAPANESE_DEMO, optGroup, type DemoBusinessData } from './businesses'
 import { getDemoBusinessType } from './businessType'
 import { averagePrepMinutes } from '@/lib/prepTime'
 
@@ -38,13 +38,18 @@ export const DEMO_CATEGORIES: Category[] = [
 ]
 
 // ─── Produtos ─────────────────────────────────────────────────────────────────
+const ACOMPANHAMENTO = optGroup('acompanhamento', 'Acompanhamento',
+  [['arroz-fritas', 'Arroz e batata frita', 0], ['pure', 'Purê de batata', 0], ['legumes', 'Legumes no vapor', 4]], { required: true })
+const MOLHOS = optGroup('molhos', 'Molhos extras',
+  [['madeira-extra', 'Molho madeira extra', 5], ['chimichurri', 'Chimichurri', 4], ['gorgonzola', 'Molho gorgonzola', 6]], { max: 2 })
+
 // imageUrl: caminho relativo a /public — asset() adiciona o basePath em runtime
 export const DEMO_PRODUCTS: Product[] = [
   { id: 'p-01', categoryId: 'cat-1', name: 'Bruschetta de Tomate',    description: 'Pão italiano com tomate e manjericão',       price: 24.90, available: true,  imageUrl: '/demo/products/images/bruschetta.jpg',        category: { id: 'cat-1', name: 'Entradas' } },
   { id: 'p-02', categoryId: 'cat-1', name: 'Bolinho de Bacalhau (8)', description: 'Fritos com maionese de ervas',               price: 32.00, available: true,  imageUrl: '/demo/products/images/bolinho-bacalhau.jpg',   videoUrl: '/demo/products/videos/bolinho-bacalhau.mp4', category: { id: 'cat-1', name: 'Entradas' } },
   { id: 'p-03', categoryId: 'cat-1', name: 'Tábua de Frios',         description: 'Queijos, frios e antepastos',                price: 48.00, available: true,  imageUrl: '/demo/products/images/tabua-de-frios.jpg',     category: { id: 'cat-1', name: 'Entradas' } },
-  { id: 'p-04', categoryId: 'cat-2', name: 'Filé ao Molho Madeira',  description: 'Filé mignon grelhado com batata e arroz',    price: 58.90, available: true,  imageUrl: '/demo/products/images/file-madeira.jpg',       category: { id: 'cat-2', name: 'Pratos Principais' } },
-  { id: 'p-05', categoryId: 'cat-2', name: 'Frango Grelhado',        description: 'Peito de frango com legumes',                price: 42.90, available: true,  imageUrl: '/demo/products/images/frango-grelhado.jpg',    category: { id: 'cat-2', name: 'Pratos Principais' } },
+  { id: 'p-04', categoryId: 'cat-2', name: 'Filé ao Molho Madeira',  description: 'Filé mignon grelhado com batata e arroz',    price: 58.90, available: true,  imageUrl: '/demo/products/images/file-madeira.jpg',       category: { id: 'cat-2', name: 'Pratos Principais' }, optionGroups: [ACOMPANHAMENTO, MOLHOS] },
+  { id: 'p-05', categoryId: 'cat-2', name: 'Frango Grelhado',        description: 'Peito de frango com legumes',                price: 42.90, available: true,  imageUrl: '/demo/products/images/frango-grelhado.jpg',    category: { id: 'cat-2', name: 'Pratos Principais' }, optionGroups: [ACOMPANHAMENTO] },
   { id: 'p-06', categoryId: 'cat-2', name: 'Moqueca de Camarão',     description: 'Camarão, leite de coco, dendê e arroz',     price: 74.90, available: true,  imageUrl: '/demo/products/images/moqueca-camarao.jpg',    category: { id: 'cat-2', name: 'Pratos Principais' } },
   { id: 'p-07', categoryId: 'cat-2', name: 'Risoto de Funghi',       description: 'Arroz arbóreo com cogumelos secos',          price: 52.90, available: false, imageUrl: '/demo/products/images/risoto-funghi.jpg',      category: { id: 'cat-2', name: 'Pratos Principais' } },
   { id: 'p-08', categoryId: 'cat-3', name: 'Margherita',             description: 'Molho, mussarela e manjericão',              price: 45.90, available: true,  imageUrl: '/demo/products/images/pizza-margherita.jpg',   category: { id: 'cat-3', name: 'Pizzas' } },
@@ -66,7 +71,7 @@ export const DEMO_PRODUCTS: Product[] = [
 
 // ─── Mesas ─────────────────────────────────────────────────────────────────────
 export const DEMO_TABLES: Table[] = [
-  { id: 't-01', number: '01', capacity: 4, status: 'OCCUPIED',  orders: [{ id: 'o-1', orderNumber: 1, status: 'PREPARING', total: 110.80 }] },
+  { id: 't-01', number: '01', capacity: 4, status: 'OCCUPIED',  orders: [{ id: 'o-1', orderNumber: 1, status: 'PREPARING', total: 114.70 }] },
   { id: 't-02', number: '02', capacity: 4, status: 'AVAILABLE', orders: [] },
   { id: 't-03', number: '03', capacity: 4, status: 'AVAILABLE', orders: [] },
   { id: 't-04', number: '04', capacity: 6, status: 'RESERVED',  orders: [] },
@@ -86,14 +91,18 @@ export const DEMO_ORDERS: Order[] = [
   {
     id: 'o-1', orderNumber: 1, channel: 'DINE_IN', status: 'PREPARING',
     paymentMethod: 'CARD', customerName: 'Mesa 01',
-    subtotal: 110.80, discount: 0, total: 110.80,
+    subtotal: 114.70, discount: 0, total: 114.70,
     tableId: 't-01', table: { id: 't-01', number: '01' },
     user: { id: 'demo-admin', name: 'Administrador Demo' },
     // Passou da previsão (34 min > 30 min): exemplo de pedido atrasado
     createdAt: ago(34), updatedAt: ago(28), prepStartedAt: ago(28),
     readyAt: null, deliveredAt: null, cancelledAt: null,
     items: [
-      { id: 'oi-1a', productId: 'p-04', productName: 'Filé ao Molho Madeira', quantity: 1, unitPrice: 58.90, totalPrice: 58.90 },
+      { id: 'oi-1a', productId: 'p-04', productName: 'Filé ao Molho Madeira', quantity: 1, unitPrice: 62.90, totalPrice: 62.90,
+        options: [
+          { id: 'oi-1a-o0', groupId: 'acompanhamento', groupName: 'Acompanhamento', optionId: 'pure', optionName: 'Purê de batata', price: 0 },
+          { id: 'oi-1a-o1', groupId: 'molhos', groupName: 'Molhos extras', optionId: 'chimichurri', optionName: 'Chimichurri', price: 4 },
+        ] },
       { id: 'oi-1b', productId: 'p-15', productName: 'Coca-Cola Lata',        quantity: 2, unitPrice:  6.00, totalPrice: 12.00 },
       { id: 'oi-1c', productId: 'p-01', productName: 'Bruschetta de Tomate',  quantity: 1, unitPrice: 24.90, totalPrice: 24.90 },
       { id: 'oi-1d', productId: 'p-21', productName: 'Pudim de Leite',        quantity: 1, unitPrice: 14.90, totalPrice: 14.90 },

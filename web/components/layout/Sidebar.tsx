@@ -13,7 +13,7 @@ import { InovasixLogo } from '@/components/brand/InovasixLogo'
 import { useSettings } from '@/hooks/useSettings'
 import { asset } from '@/lib/asset'
 import { IS_DEMO } from '@/lib/demo'
-import { BUSINESS_TYPES, getBusinessProfile } from '@/lib/business'
+import { BUSINESS_TYPES, DEMO_ESTABLISHMENTS, demoEstablishment, getBusinessProfile } from '@/lib/business'
 import type { BusinessType, UserRole } from '@/types'
 
 interface NavItem {
@@ -56,7 +56,7 @@ function BusinessLogo({ src, size }: { src?: string; size: number }) {
 /** Marca, estabelecimento, navegação e usuário — usado na sidebar fixa e no menu mobile. */
 function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onClose?: () => void }) {
   const pathname = usePathname()
-  const { user, logout, setBusinessType } = useAuth()
+  const { user, logout, setBusinessType, switchEstablishment } = useAuth()
   const { settings } = useSettings()
   const business = getBusinessProfile(user?.businessType)
 
@@ -67,8 +67,12 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
       ? { ...n, label: business.kitchenLabel, icon: business.type === 'CONFECTIONERY' ? <CakeSlice size={18} /> : n.icon }
       : n)
 
-  // Demo: qualquer perfil troca a demonstração. Sistema real: apenas administrador.
-  const canChangeBusiness = !!user && (IS_DEMO || user.role === 'ADMIN')
+  // Demo publicada: qualquer perfil troca a demonstração (dados locais do navegador).
+  const canChangeBusiness = !!user && IS_DEMO
+  // Modo API: só nos estabelecimentos de demonstração, e trocar significa entrar em
+  // outro restaurante (novo login e novo JWT). O tipo de um restaurante real é
+  // alterado em Configurações e nunca troca cardápio nem pedidos.
+  const canSwitchEstablishment = !!user && !IS_DEMO && !!demoEstablishment(user.restaurantSlug)
 
   return (
     <>
@@ -123,6 +127,23 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
                   const p = getBusinessProfile(t)
                   return <option key={t} value={t}>{IS_DEMO ? p.demoName : p.label}</option>
                 })}
+              </select>
+            </label>
+          )}
+          {canSwitchEstablishment && (
+            <label className="mt-2.5 block">
+              <span className="sr-only">Estabelecimento</span>
+              <select
+                value={user.restaurantSlug}
+                onChange={(e) => switchEstablishment(e.target.value)}
+                aria-label="Trocar estabelecimento"
+                title="Abre o login do estabelecimento escolhido"
+                className="w-full rounded-lg border px-2.5 py-1.5 text-xs font-medium text-gray-200 outline-none transition-colors focus:ring-2 focus:ring-brand-500 [color-scheme:dark]"
+                style={{ background: 'rgba(15, 22, 52, 0.9)', borderColor: 'rgba(96, 136, 255, 0.25)' }}
+              >
+                {DEMO_ESTABLISHMENTS.map((e) => (
+                  <option key={e.slug} value={e.slug}>{getBusinessProfile(e.type).demoName}</option>
+                ))}
               </select>
             </label>
           )}

@@ -9,6 +9,7 @@ import { dataApi } from '@/hooks/useApi'
 import type { Order } from '@/types'
 import { formatQuantity } from '@/lib/business'
 import { OrderTimingLine, useOrderTiming } from '@/components/orders/OrderTiming'
+import { ItemOptions } from '@/components/orders/ItemOptions'
 
 interface OrderCardProps {
   order: Order
@@ -118,9 +119,7 @@ export function OrderCard({ order, now, onStatusChange, onCancel }: OrderCardPro
               <div key={item.id} className="flex items-start justify-between text-sm gap-2">
                 <div>
                   <span className="text-white">{formatQuantity(item.quantity, item.unit)} {item.productName}</span>
-                  {!!item.addons?.length && (
-                    <p className="text-xs text-brand-300 mt-0.5">+ {item.addons.map(a => a.name).join(', ')}</p>
-                  )}
+                  <ItemOptions options={item.options} className="mt-0.5" />
                   {item.notes && <p className="text-xs text-amber-400 mt-0.5">⚠ {item.notes}</p>}
                 </div>
                 <span className="text-gray-400 flex-shrink-0">{formatCurrency(Number(item.totalPrice))}</span>

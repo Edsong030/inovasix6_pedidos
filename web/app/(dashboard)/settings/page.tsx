@@ -15,7 +15,7 @@ import { dataApi } from '@/hooks/useApi'
 import { IS_DEMO } from '@/lib/demo'
 import { asset } from '@/lib/asset'
 import { cn } from '@/lib/utils'
-import { BUSINESS_TYPES, getBusinessProfile, nameForBusinessType } from '@/lib/business'
+import { BUSINESS_TYPES, demoEstablishment, getBusinessProfile, nameForBusinessType } from '@/lib/business'
 import {
   ACCENT_COLORS, ACCENT_PRESETS, LIMITS, UFS, WEEKDAYS, WEEK_ORDER,
   checkLogoFile, defaultPreferences, formatCep, formatCnpj, formatPhone, logoToDataUrl,
@@ -334,7 +334,10 @@ export default function SettingsPage() {
   if (!form || !settings) return <PageLoader />
 
   const business       = getBusinessProfile(settings.businessType)
-  const canChangeType  = IS_DEMO || user.role === 'ADMIN'
+  // Modo API: estabelecimento de demonstração tem tipo fixo (a API também recusa);
+  // outro tipo = outro estabelecimento, pelo seletor do menu lateral
+  const demoTenant     = !IS_DEMO && !!demoEstablishment(user.restaurantSlug)
+  const canChangeType  = IS_DEMO || (user.role === 'ADMIN' && !demoTenant)
   const set = <K extends keyof BusinessSettings>(key: K, value: BusinessSettings[K]) => {
     setForm(f => (f ? { ...f, [key]: value } : f))
     if (errors[key as string]) setErrors(e => { const n = { ...e }; delete n[key as string]; return n })
@@ -449,7 +452,7 @@ export default function SettingsPage() {
                   <input {...text('name')} autoComplete="organization" />
                 </Field>
                 <Field id="businessType" label="Tipo de negócio"
-                  hint={canChangeType ? (IS_DEMO ? 'Troca o cardápio e a operação da demonstração' : 'Ajusta textos e recursos do sistema') : 'Somente o administrador pode alterar'}>
+                  hint={canChangeType ? (IS_DEMO ? 'Troca o cardápio e a operação da demonstração' : 'Ajusta textos e recursos do sistema') : demoTenant ? 'Fixo na demonstração: troque de estabelecimento no menu lateral' : 'Somente o administrador pode alterar'}>
                   <select
                     id="businessType"
                     value={form.businessType}

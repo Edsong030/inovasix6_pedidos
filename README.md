@@ -220,6 +220,7 @@ Pedidos podem ter **data/hora de retirada ou entrega** (`isPreorder`, `scheduled
 | `npm run db:migrate`      | Cria migration e aplica (dev)                  |
 | `npm run db:migrate:prod` | Aplica migrations sem criar novas (produção)   |
 | `npm run db:seed`         | Popula banco com dados de demonstração         |
+| `npm run db:demo-reset -- --confirm` | Recria só os 4 estabelecimentos demo ⚠️ apaga cardápio, mesas e pedidos deles (sem `--confirm` só lista; recusado em produção) |
 | `npm run db:studio`       | Abre Prisma Studio GUI em localhost:5555       |
 | `npm run db:reset`        | Reseta banco completo ⚠️ apaga todos os dados  |
 

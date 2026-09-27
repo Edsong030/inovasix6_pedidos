@@ -9,13 +9,19 @@ import { CreateOrderDto, UpdateOrderStatusDto } from './dto/create-order.dto';
 import { OrderStatus } from '@prisma/client';
 import { averagePrepMinutes } from './prep-time';
 import { estimateReadyAt } from './order-timing';
+import { readOptionGroups, resolveSelection } from '../products/product-options';
 
 @Injectable()
 export class OrdersService {
   constructor(private prisma: PrismaService) {}
 
   private orderInclude = {
-    items: { include: { product: { select: { id: true, name: true, imageUrl: true } } } },
+    items: {
+      include: {
+        product: { select: { id: true, name: true, imageUrl: true } },
+        options: { orderBy: { sortOrder: 'asc' as const } },
+      },
+    },
     table: { select: { id: true, number: true } },
     user: { select: { id: true, name: true } },
   };
@@ -71,7 +77,8 @@ export class OrdersService {
       where: { id: { in: productIds }, restaurantId },
     });
 
-    if (products.length !== productIds.length) {
+    // O mesmo produto pode aparecer em mais de uma linha (ex.: pontos diferentes)
+    if (products.length !== new Set(productIds).size) {
       throw new BadRequestException('Um ou mais produtos não encontrados');
     }
 
@@ -104,18 +111,16 @@ export class OrdersService {
         throw new BadRequestException(`Quantidade de "${product.name}" deve ser um número inteiro`);
       }
 
-      // Adicionais: preços sempre do cadastro, nunca do cliente
-      const catalog = Array.isArray(product.addons)
-        ? (product.addons as Array<{ id: string; name: string; price: number }>)
-        : [];
-      const addons = (item.addonIds ?? []).map((addonId) => {
-        const addon = catalog.find((a) => a.id === addonId);
-        if (!addon) throw new BadRequestException(`Adicional inválido para "${product.name}"`);
-        return { id: addon.id, name: addon.name, price: Number(addon.price) };
-      });
-      const addonsPrice = addons.reduce((s, a) => s + a.price, 0);
+      if (!product.available) {
+        throw new BadRequestException(`"${product.name}" está indisponível no momento`);
+      }
 
-      const unitPrice = Number(product.price) + addonsPrice;
+      // Opções: validadas contra o cadastro DESTE produto (já filtrado pelo restaurantId);
+      // preço e nomes vêm do cadastro, nunca do cliente
+      const selection = resolveSelection(product.name, readOptionGroups(product.optionGroups), item.optionIds);
+      if ('error' in selection) throw new BadRequestException(selection.error);
+
+      const unitPrice = Math.round((Number(product.price) + selection.extra) * 100) / 100;
       const totalPrice = Math.round(unitPrice * item.quantity * 100) / 100;
       return {
         productId: item.productId,
@@ -124,8 +129,11 @@ export class OrdersService {
         unit: product.saleUnit,
         unitPrice,
         totalPrice,
-        notes: item.notes,
-        addons: addons.length ? addons : undefined,
+        notes: item.notes?.trim() || undefined,
+        // Snapshot do que foi escolhido, com o preço aplicado agora
+        options: selection.chosen.length
+          ? { create: selection.chosen.map((c, i) => ({ ...c, sortOrder: i })) }
+          : undefined,
       };
     });
 

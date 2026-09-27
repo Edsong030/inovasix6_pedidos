@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, Trash2, Search, Loader2, CalendarClock, TriangleAlert, MessageSquareText } from 'lucide-react'
+import { Plus, Trash2, Search, Loader2, CalendarClock, TriangleAlert, MessageSquareText, Pencil, SlidersHorizontal } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { DateTimePicker } from '@/components/ui/DateTimePicker'
 import { dataApi } from '@/hooks/useApi'
@@ -12,6 +12,9 @@ import { useBusiness } from '@/hooks/useBusiness'
 import { useSettings } from '@/hooks/useSettings'
 import { formatCurrency, cn } from '@/lib/utils'
 import { priceSuffix, quantityStep } from '@/lib/business'
+import { hasOptions, readOptionGroups, resolveSelection } from '@/lib/productOptions'
+import { ItemCustomizer, type ItemChoice } from '@/components/orders/ItemCustomizer'
+import { ItemOptions } from '@/components/orders/ItemOptions'
 import { ORDER_CHANNEL_LABEL, PAYMENT_LABEL } from '@/types'
 import type { Product, Category, Table } from '@/types'
 import toast from 'react-hot-toast'
@@ -32,7 +35,7 @@ const schema = z.object({
     productId: z.string().min(1),
     quantity:  z.number().positive('Quantidade inválida'),
     notes:     z.string().optional(),
-    addonIds:  z.array(z.string()).optional(),
+    optionIds: z.array(z.string()).optional(),
   })).min(1, 'Adicione pelo menos um item'),
 })
 type FormData = z.infer<typeof schema>
@@ -59,6 +62,8 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
   const [search,     setSearch]     = useState('')
   const [selCat,     setSelCat]     = useState<string>('all')
   const [saving,     setSaving]     = useState(false)
+  /** Personalização aberta: produto e, ao editar, a linha do carrinho */
+  const [customizing, setCustomizing] = useState<{ product: Product; index: number | null } | null>(null)
 
   const { register, control, handleSubmit, watch, setValue, reset, formState: { errors } } =
     useForm<FormData>({
@@ -72,7 +77,7 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
       },
     })
 
-  const { fields, append, remove } = useFieldArray({ control, name: 'items' })
+  const { fields, append, remove, update } = useFieldArray({ control, name: 'items' })
   const channel    = watch('channel')
   const itemsW     = watch('items')
   const discountW  = watch('discount') ?? 0
@@ -100,14 +105,19 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
 
   const getProduct = useCallback((id: string) => products.find(p => p.id === id), [products])
 
-  const itemUnitPrice = (productId: string, addonIds?: string[]) => {
+  /** Prévia do preço (a API recalcula tudo a partir do cadastro). */
+  const itemSelection = (productId: string, optionIds?: string[]) => {
     const p = getProduct(productId)
-    if (!p) return 0
-    const addons = (addonIds ?? []).reduce((s, id) => s + (p.addons?.find(a => a.id === id)?.price ?? 0), 0)
-    return Number(p.price) + addons
+    if (!p) return null
+    const r = resolveSelection(p.name, readOptionGroups(p.optionGroups), optionIds)
+    return { product: p, ...('error' in r ? { extra: 0, chosen: [], error: r.error } : { ...r, error: null }) }
+  }
+  const itemUnitPrice = (productId: string, optionIds?: string[]) => {
+    const sel = itemSelection(productId, optionIds)
+    return sel ? Number(sel.product.price) + sel.extra : 0
   }
 
-  const subtotal = itemsW.reduce((sum, item) => sum + itemUnitPrice(item.productId, item.addonIds) * (item.quantity || 0), 0)
+  const subtotal = itemsW.reduce((sum, item) => sum + itemUnitPrice(item.productId, item.optionIds) * (item.quantity || 0), 0)
   const total = Math.max(0, subtotal - discountW)
 
   // Encomenda: obrigatória quando há produto sob encomenda; respeita a maior antecedência
@@ -118,25 +128,25 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
   const minSchedule = toLocalInput(new Date(Date.now() + leadHours * 3_600_000))
 
   const addItem = (product: Product) => {
-    const existing = fields.findIndex(f => f.productId === product.id)
+    // Com grupos de opções: personaliza antes de entrar no carrinho (cada escolha é uma linha)
+    if (hasOptions(product.optionGroups)) { setCustomizing({ product, index: null }); return }
+    // Sem opções: entra direto; clicar de novo soma à mesma linha (se ela não tem observação)
+    const existing = itemsW.findIndex(i => i.productId === product.id && !i.notes?.trim() && !i.optionIds?.length)
     if (existing >= 0) {
       // Quilo soma 0,5 kg por clique; unidade e cento somam 1
       const increment = product.saleUnit === 'KG' ? 0.5 : 1
       setValue(`items.${existing}.quantity`, (itemsW[existing].quantity || 0) + increment)
     } else {
-      append({ productId: product.id, quantity: 1, notes: '', addonIds: [] })
+      append({ productId: product.id, quantity: 1, notes: '', optionIds: [] })
     }
   }
 
-  const toggleAddon = (idx: number, addonId: string) => {
-    const current = itemsW[idx]?.addonIds ?? []
-    setValue(`items.${idx}.addonIds`, current.includes(addonId) ? current.filter(a => a !== addonId) : [...current, addonId])
-  }
-
-  const addObservation = (idx: number, text: string) => {
-    const current = (itemsW[idx]?.notes ?? '').trim()
-    if (current.split(' · ').includes(text)) return
-    setValue(`items.${idx}.notes`, current ? `${current} · ${text}` : text)
+  const confirmCustomization = (choice: ItemChoice) => {
+    if (!customizing) return
+    const line = { productId: customizing.product.id, ...choice }
+    if (customizing.index === null) append(line)
+    else update(customizing.index, line)
+    setCustomizing(null)
   }
 
   const onSubmit = async (data: FormData) => {
@@ -150,6 +160,9 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
         toast.error(`Quantidade de "${p.name}" deve ser um número inteiro`)
         return
       }
+      // Escolhas ainda válidas para o cadastro atual (a API confere de novo)
+      const sel = itemSelection(item.productId, item.optionIds)
+      if (sel?.error) { toast.error(sel.error); return }
     }
 
     // Só envia o que a API conhece (ela rejeita campos extras)
@@ -161,7 +174,7 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
         productId: i.productId,
         quantity: i.quantity,
         ...(i.notes?.trim() ? { notes: i.notes.trim() } : {}),
-        ...(i.addonIds?.length ? { addonIds: i.addonIds } : {}),
+        ...(i.optionIds?.length ? { optionIds: i.optionIds } : {}),
       })),
     }
     if (data.channel === 'DINE_IN' && data.tableId) payload.tableId = data.tableId
@@ -190,7 +203,9 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={isPreorder ? 'Nova Encomenda' : 'Novo Pedido'} size="xl">
+    <>
+    {/* Esc/fechar valem só para a personalização quando ela está aberta */}
+    <Modal open={open} onClose={() => { if (!customizing) onClose() }} title={isPreorder ? 'Nova Encomenda' : 'Novo Pedido'} size="xl">
       <form onSubmit={handleSubmit(onSubmit)}>
         {paused && (
           <p className="mb-4 flex items-start gap-2 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
@@ -285,8 +300,8 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-400 mb-1">Observações do pedido</label>
-              <textarea {...register('notes')} className="input text-sm h-14 resize-none" placeholder="Alergias, troco, ponto de referência..." />
+              <label htmlFor="order-notes" className="block text-xs font-medium text-gray-400 mb-1">Observação geral do pedido</label>
+              <textarea id="order-notes" {...register('notes')} maxLength={500} className="input text-sm h-14 resize-none" placeholder="Troco, alergias, ponto de referência… (vale para o pedido todo)" />
             </div>
 
             {/* Items list */}
@@ -298,17 +313,20 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
                   <span className="max-md:hidden">Selecione produtos ao lado →</span>
                 </p>
               ) : (
-                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                <ul className="space-y-2 max-h-80 overflow-y-auto pr-1">
                   {fields.map((field, idx) => {
-                    const prod = getProduct(field.productId)
-                    const selectedAddons = itemsW[idx]?.addonIds ?? []
+                    const item = itemsW[idx] ?? field
+                    const sel = itemSelection(field.productId, item.optionIds)
+                    const prod = sel?.product
+                    const unit = itemUnitPrice(field.productId, item.optionIds)
                     return (
-                      <div key={field.id} className="bg-surface-50 rounded-lg p-2 space-y-2">
-                        <div className="flex items-center gap-2">
+                      <li key={field.id} className={cn('bg-surface-50 rounded-lg p-2.5 space-y-1.5', sel?.error && 'ring-1 ring-red-400/50')}>
+                        <div className="flex items-start gap-2">
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium text-white truncate">{prod?.name}</p>
-                            <p className="text-xs text-brand-400">
-                              {formatCurrency(itemUnitPrice(field.productId, selectedAddons))}{priceSuffix(prod?.saleUnit)}
+                            <p className="text-sm font-medium text-white truncate">{prod?.name}</p>
+                            <p className="text-xs text-brand-400 tabular-nums">
+                              {formatCurrency(unit)}{priceSuffix(prod?.saleUnit)}
+                              {(item.quantity || 0) !== 1 && <span className="text-gray-500"> · {formatCurrency(unit * (item.quantity || 0))}</span>}
                             </p>
                           </div>
                           <input
@@ -319,59 +337,25 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
                             className="w-16 input text-xs py-1 text-center"
                             aria-label={`Quantidade de ${prod?.name ?? 'item'}`}
                           />
-                          {prod?.saleUnit === 'KG' && <span className="text-xs text-gray-500">kg</span>}
-                          {prod?.saleUnit === 'HUNDRED' && <span className="text-xs text-gray-500">cento</span>}
-                          <button type="button" onClick={() => remove(idx)} className="text-red-400 hover:text-red-300 p-1" aria-label="Remover item">
-                            <Trash2 size={14} />
+                          {prod?.saleUnit === 'KG' && <span className="text-xs text-gray-500 self-center">kg</span>}
+                          {prod?.saleUnit === 'HUNDRED' && <span className="text-xs text-gray-500 self-center">cento</span>}
+                        </div>
+                        <ItemOptions options={sel?.chosen} />
+                        {item.notes?.trim() && <p className="text-xs text-amber-300/90">Obs.: {item.notes}</p>}
+                        {sel?.error && <p className="text-xs text-red-300">{sel.error}</p>}
+                        <div className="flex gap-3 pt-0.5">
+                          <button type="button" onClick={() => prod && setCustomizing({ product: prod, index: idx })}
+                            className="text-xs text-brand-300 hover:text-white flex items-center gap-1" aria-label={`Editar ${prod?.name ?? 'item'}`}>
+                            <Pencil size={12} /> {hasOptions(prod?.optionGroups) ? 'Editar opções' : 'Observação'}
+                          </button>
+                          <button type="button" onClick={() => remove(idx)} className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 ml-auto" aria-label={`Remover ${prod?.name ?? 'item'}`}>
+                            <Trash2 size={12} /> Remover
                           </button>
                         </div>
-
-                        {!!prod?.addons?.length && (
-                          <div className="flex flex-wrap gap-1">
-                            {prod.addons.map(a => {
-                              const on = selectedAddons.includes(a.id)
-                              return (
-                                <button
-                                  key={a.id}
-                                  type="button"
-                                  onClick={() => toggleAddon(idx, a.id)}
-                                  aria-pressed={on}
-                                  className={cn(
-                                    'text-[11px] px-2 py-0.5 rounded-full border transition-colors',
-                                    on ? 'bg-brand-600/30 border-brand-500/60 text-white' : 'border-card-border text-gray-400 hover:text-white',
-                                  )}
-                                >
-                                  + {a.name} {formatCurrency(a.price)}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        )}
-
-                        {!!prod?.observationOptions?.length && (
-                          <div className="flex flex-wrap gap-1">
-                            {prod.observationOptions.map(o => (
-                              <button
-                                key={o}
-                                type="button"
-                                onClick={() => addObservation(idx, o)}
-                                className="text-[11px] px-2 py-0.5 rounded-full border border-amber-400/20 text-amber-200/80 hover:text-amber-100 hover:border-amber-400/40 transition-colors"
-                              >
-                                {o}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-
-                        <input
-                          {...register(`items.${idx}.notes`)}
-                          className="input text-xs py-1"
-                          placeholder="Observação do item (ex.: sem cebola)"
-                        />
-                      </div>
+                      </li>
                     )
                   })}
-                </div>
+                </ul>
               )}
               {errors.items && <p className="text-red-400 text-xs mt-1">{String(errors.items.message || '')}</p>}
             </div>
@@ -446,8 +430,10 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
                           Sob encomenda{product.minLeadTimeHours ? ` · ${product.minLeadTimeHours}h` : ''}
                         </span>
                       )}
-                      {!!product.addons?.length && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300">+ adicionais</span>
+                      {hasOptions(product.optionGroups) && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 inline-flex items-center gap-1">
+                          <SlidersHorizontal size={10} /> personalizável
+                        </span>
                       )}
                       {product.description && (
                         <span className="text-xs text-gray-500 truncate">{product.description}</span>
@@ -478,5 +464,19 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
         </div>
       </form>
     </Modal>
+    {customizing && (
+      <ItemCustomizer
+        key={`${customizing.product.id}-${customizing.index ?? 'novo'}`}
+        product={customizing.product}
+        initial={customizing.index !== null ? {
+          quantity: itemsW[customizing.index]?.quantity ?? 1,
+          notes: itemsW[customizing.index]?.notes ?? '',
+          optionIds: itemsW[customizing.index]?.optionIds ?? [],
+        } : undefined}
+        onConfirm={confirmCustomization}
+        onClose={() => setCustomizing(null)}
+      />
+    )}
+    </>
   )
 }
