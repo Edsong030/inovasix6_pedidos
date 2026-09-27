@@ -40,7 +40,6 @@ jobs:
         env:
           NEXT_PUBLIC_DEMO_MODE:    'true'
           NEXT_PUBLIC_API_URL:      ''
-          NODE_TLS_REJECT_UNAUTHORIZED: '0'   # necessário para download de binários Prisma em alguns runners
         run: npm run build
 
       - name: Configure GitHub Pages

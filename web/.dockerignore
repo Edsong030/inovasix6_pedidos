@@ -1,0 +1,15 @@
+# Nunca enviar ao contexto de build: segredos, dependências locais, builds e dados locais
+.env
+.env.*
+!.env.example
+node_modules
+.next
+out
+coverage
+*.log
+.git
+.gitignore
+Dockerfile
+.dockerignore
+.vscode
+.idea

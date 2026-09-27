@@ -10,7 +10,9 @@
  *   npm run db:demo-reset -- --confirm
  *                          APAGA e recria SÓ esses quatro estabelecimentos (cardápio, mesas e
  *                          pedidos) com horários relativos a agora. Sem --confirm apenas lista o
- *                          que seria apagado. Recusado com NODE_ENV=production.
+ *                          que seria apagado.
+ *
+ *   Os dois comandos recusam NODE_ENV=production: criam usuários com senhas de demonstração.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -285,6 +287,8 @@ async function createOrders(def: TenantDef, restaurantId: string, attendant: str
     });
   }
   for (const tableId of occupied) await prisma.table.update({ where: { id: tableId }, data: { status: TableStatus.OCCUPIED } });
+  // O próximo pedido criado pela API continua a numeração (contador atômico)
+  await prisma.restaurant.update({ where: { id: restaurantId }, data: { orderSeq: number } });
   console.log(`✅ ${def.name}: ${number} pedidos (${def.orders.length} de hoje)`);
 }
 
@@ -344,6 +348,12 @@ async function confirmReset(): Promise<boolean> {
 }
 
 async function main() {
+  // Seed cria usuários com senhas de demonstração conhecidas: nunca em produção
+  if (nodeEnv() === 'production') {
+    console.error('⛔ Seed recusado: NODE_ENV=production. Dados e senhas de demonstração só em ambiente local/desenvolvimento.');
+    process.exitCode = 1;
+    return;
+  }
   if (RESET && !(await confirmReset())) {
     process.exitCode = 1;
     return;

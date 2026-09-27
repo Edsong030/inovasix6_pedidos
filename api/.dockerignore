@@ -1,0 +1,21 @@
+# Nunca enviar ao contexto de build: segredos, dependências locais, builds e dados locais
+.env
+.env.*
+!.env.example
+node_modules
+dist
+coverage
+uploads
+*.log
+.git
+.gitignore
+Dockerfile
+.dockerignore
+# Arquivos locais de ferramentas/agentes e sobras
+.agents
+.claude
+.cursor
+.devin
+.vscode
+.idea
+1

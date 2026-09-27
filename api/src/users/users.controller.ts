@@ -4,13 +4,15 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
-import { UsersService } from './users.service';
+import { UsersService, type Actor } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+
+const actorOf = (u: Actor): Actor => ({ id: u.id, role: u.role, restaurantId: u.restaurantId });
 
 @ApiTags('Users')
 @ApiBearerAuth()
@@ -34,7 +36,7 @@ export class UsersController {
   @Post()
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   create(@Body() dto: CreateUserDto, @CurrentUser() user: any) {
-    return this.usersService.create(user.restaurantId, dto);
+    return this.usersService.create(actorOf(user), dto);
   }
 
   @Patch(':id')
@@ -44,12 +46,12 @@ export class UsersController {
     @Body() dto: UpdateUserDto,
     @CurrentUser() user: any,
   ) {
-    return this.usersService.update(id, user.restaurantId, dto);
+    return this.usersService.update(id, actorOf(user), dto);
   }
 
   @Delete(':id')
   @Roles(UserRole.ADMIN)
   remove(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.usersService.remove(id, user.restaurantId);
+    return this.usersService.remove(id, actorOf(user));
   }
 }

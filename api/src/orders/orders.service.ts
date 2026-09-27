@@ -141,47 +141,61 @@ export class OrdersService {
     const discount = dto.discount ?? 0;
     const total = subtotal - discount;
 
-    // Número sequencial do pedido por restaurante
-    const lastOrder = await this.prisma.order.findFirst({
-      where: { restaurantId },
-      orderBy: { orderNumber: 'desc' },
-      select: { orderNumber: true },
-    });
-    const orderNumber = (lastOrder?.orderNumber ?? 0) + 1;
+    // Tudo ou nada: mesa, número, pedido, itens e ocupação da mesa na mesma transação.
+    // Se qualquer passo falhar, nada é gravado e o número não é consumido.
+    return this.prisma.$transaction(async (tx) => {
+      // A mesa precisa ser do restaurante do token (nunca confiar no id enviado)
+      if (dto.tableId) {
+        const table = await tx.table.findFirst({
+          where: { id: dto.tableId, restaurantId },
+          select: { id: true },
+        });
+        if (!table) throw new NotFoundException('Mesa não encontrada');
+      }
 
-    const order = await this.prisma.order.create({
-      data: {
-        restaurantId,
-        userId,
-        tableId: dto.tableId,
-        orderNumber,
-        channel: dto.channel,
-        paymentMethod: dto.paymentMethod,
-        customerName: dto.customerName,
-        customerPhone: dto.customerPhone,
-        deliveryAddress: dto.deliveryAddress,
-        notes: dto.notes,
-        isPreorder,
-        scheduledFor,
-        // Relógio do servidor + tempo médio do negócio (nunca vem do navegador)
-        estimatedReadyAt: estimateReadyAt(new Date(), restaurant.avgPrepMinutes, scheduledFor),
-        subtotal,
-        discount,
-        total,
-        items: { create: itemsData },
-      },
-      include: this.orderInclude,
-    });
-
-    // Ocupa mesa se for salão
-    if (dto.tableId && dto.channel === 'DINE_IN') {
-      await this.prisma.table.update({
-        where: { id: dto.tableId },
-        data: { status: 'OCCUPIED' },
+      // Número sequencial por restaurante: UPDATE ... RETURNING trava a linha do
+      // restaurante até o fim da transação, então pedidos simultâneos recebem números
+      // distintos (o índice único restaurantId + orderNumber garante no banco)
+      const { orderSeq: orderNumber } = await tx.restaurant.update({
+        where: { id: restaurantId },
+        data: { orderSeq: { increment: 1 } },
+        select: { orderSeq: true },
       });
-    }
 
-    return order;
+      const order = await tx.order.create({
+        data: {
+          restaurantId,
+          userId,
+          tableId: dto.tableId,
+          orderNumber,
+          channel: dto.channel,
+          paymentMethod: dto.paymentMethod,
+          customerName: dto.customerName,
+          customerPhone: dto.customerPhone,
+          deliveryAddress: dto.deliveryAddress,
+          notes: dto.notes,
+          isPreorder,
+          scheduledFor,
+          // Relógio do servidor + tempo médio do negócio (nunca vem do navegador)
+          estimatedReadyAt: estimateReadyAt(new Date(), restaurant.avgPrepMinutes, scheduledFor),
+          subtotal,
+          discount,
+          total,
+          items: { create: itemsData },
+        },
+        include: this.orderInclude,
+      });
+
+      // Ocupa mesa se for salão (filtro por restaurantId também na escrita)
+      if (dto.tableId && dto.channel === 'DINE_IN') {
+        await tx.table.update({
+          where: { id: dto.tableId, restaurantId },
+          data: { status: 'OCCUPIED' },
+        });
+      }
+
+      return order;
+    });
   }
 
   async updateStatus(id: string, restaurantId: string, dto: UpdateOrderStatusDto) {
@@ -212,7 +226,7 @@ export class OrdersService {
     if (status === OrderStatus.CANCELLED) timestamps['cancelledAt'] = now;
 
     const updated = await this.prisma.order.update({
-      where: { id },
+      where: { id, restaurantId },
       data: { status, ...timestamps },
       include: this.orderInclude,
     });
@@ -224,13 +238,15 @@ export class OrdersService {
     ) {
       const activeOrders = await this.prisma.order.count({
         where: {
+          restaurantId,
           tableId: order.tableId,
           status: { in: ['RECEIVED', 'PREPARING', 'READY'] },
         },
       });
       if (activeOrders === 0) {
-        await this.prisma.table.update({
-          where: { id: order.tableId },
+        // updateMany com restaurantId: nunca libera mesa de outro restaurante
+        await this.prisma.table.updateMany({
+          where: { id: order.tableId, restaurantId },
           data: { status: 'AVAILABLE' },
         });
       }

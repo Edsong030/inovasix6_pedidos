@@ -46,6 +46,9 @@ model Restaurant {
   openingHours            Json?
   avgPrepMinutes          Int      @default(30)
   acceptingOrders         Boolean  @default(true)
+  /// Ultimo numero de pedido emitido. Incrementado atomicamente (UPDATE ... RETURNING) ao criar
+  /// um pedido: pedidos simultaneos do mesmo restaurante recebem numeros distintos e sequenciais
+  orderSeq                Int      @default(0)
   showUnavailableProducts Boolean  @default(false)
   orderMessage            String?
   createdAt    DateTime     @default(now())
@@ -230,6 +233,8 @@ model Order {
   table      Table?      @relation(fields: [tableId], references: [id])
   items      OrderItem[]
 
+  /// Numero do pedido unico por restaurante (o contador fica em Restaurant.orderSeq)
+  @@unique([restaurantId, orderNumber])
   @@map("orders")
 }
 
