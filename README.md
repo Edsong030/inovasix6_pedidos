@@ -34,23 +34,19 @@ Plataforma de gestão de pedidos para **restaurantes, lanchonetes e confeitarias
 
 ---
 
-## Subir com Docker (recomendado)
+## Banco de dados com Docker (recomendado)
 
 ```bash
-# 1. Banco de dados
-docker run -d \
-  --name inovasix_postgres \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_DB=inovasix_pedidos \
-  -p 5432:5432 \
-  postgres:16-alpine
+# 1. Defina a senha do banco local em .env (arquivo não versionado)
+cp .env.example .env        # PowerShell: copy .env.example .env
+#    edite .env e preencha POSTGRES_PASSWORD (use a mesma senha na DATABASE_URL de api/.env)
+
+# 2. Suba só o PostgreSQL (escuta apenas em 127.0.0.1:5432)
+docker compose up -d
 ```
 
-> No Windows PowerShell use uma linha só sem `\`:
-> ```powershell
-> docker run -d --name inovasix_postgres -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=inovasix_pedidos -p 5432:5432 postgres:16-alpine
-> ```
+> Produção usa `docker-compose.prod.yml`: banco sem porta exposta, migrations antes da API e **nenhum seed**.
+> Todas as variáveis obrigatórias estão em `.env.example`.
 
 ---
 

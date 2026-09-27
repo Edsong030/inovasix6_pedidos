@@ -1,0 +1,92 @@
+# Produção.
+#
+#   cp .env.example .env      # preencha TODOS os valores obrigatórios (nunca versione o .env)
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# • O PostgreSQL não publica porta: só a API o alcança, pela rede interna "backend".
+# • "migrate" aplica as migrations antes da API subir; se falhar, a API não sobe.
+# • Nenhum seed roda aqui: dados e senhas de demonstração nunca vão para produção.
+#   O primeiro administrador é criado por um processo próprio (fora deste arquivo).
+# • API e web escutam só em 127.0.0.1: exponha-os via proxy reverso com TLS.
+
+name: inovasix-prod
+
+x-database-url: &database-url postgresql://${POSTGRES_USER:-inovasix}:${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-inovasix_pedidos}?schema=public
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-inovasix}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-inovasix_pedidos}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build:
+      context: ./api
+      target: migrate
+    environment:
+      DATABASE_URL: *database-url
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+    restart: 'no'
+
+  api:
+    build:
+      context: ./api
+      target: runtime
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: *database-url
+      JWT_SECRET: ${JWT_SECRET:?Defina JWT_SECRET (64+ caracteres aleatórios)}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      FRONTEND_URL: ${FRONTEND_URL:?Defina FRONTEND_URL (origem do web, ex. https://app.seudominio.com)}
+      PORT: 3001
+      NODE_ENV: production
+      ANOTA_AI_ENABLED: 'false'
+    volumes:
+      - uploads:/app/uploads
+    ports:
+      - '127.0.0.1:3001:3001'
+    networks:
+      - backend
+      - frontend
+
+  web:
+    build:
+      context: ./web
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?Defina NEXT_PUBLIC_API_URL (ex. https://api.seudominio.com/api)}
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - '127.0.0.1:3000:3000'
+    networks:
+      - frontend
+
+networks:
+  # internal: sem saída nem porta publicada; o banco fica isolado
+  backend:
+    internal: true
+  frontend:
+
+volumes:
+  pgdata:
+  uploads:
