@@ -10,6 +10,8 @@ import type { Order } from '@/types'
 import { formatQuantity } from '@/lib/business'
 import { OrderTimingLine, useOrderTiming } from '@/components/orders/OrderTiming'
 import { ItemOptions } from '@/components/orders/ItemOptions'
+import { useAuth } from '@/hooks/useAuth'
+import { canChangeOrderStatus } from '@/lib/permissions'
 
 interface OrderCardProps {
   order: Order
@@ -22,13 +24,16 @@ interface OrderCardProps {
 export function OrderCard({ order, now, onStatusChange, onCancel }: OrderCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [loading, setLoading]   = useState(false)
+  const { user } = useAuth()
 
   const elapsed     = Math.max(0, Math.floor((now - new Date(order.createdAt).getTime()) / 60000))
   // Destaque pelo prazo (previsão de pronto), não por tempo fixo desde a criação
   const timing      = useOrderTiming()(order, now)
-  const nextStatus  = NEXT_STATUS[order.status]
-  const nextLabel   = NEXT_STATUS_LABEL[order.status]
-  const canCancel   = !['DELIVERED', 'CANCELLED'].includes(order.status)
+  // Só mostra a ação que o perfil pode executar (a API recusa as demais)
+  const next        = NEXT_STATUS[order.status]
+  const nextStatus  = next && canChangeOrderStatus(user?.role, order, next) ? next : null
+  const nextLabel   = nextStatus ? NEXT_STATUS_LABEL[order.status] : null
+  const canCancel   = !['DELIVERED', 'CANCELLED'].includes(order.status) && canChangeOrderStatus(user?.role, order, 'CANCELLED')
   const isFinished  = ['DELIVERED', 'CANCELLED'].includes(order.status)
 
   const handleNext = async () => {
@@ -148,7 +153,7 @@ export function OrderCard({ order, now, onStatusChange, onCancel }: OrderCardPro
       )}
 
       {/* Actions */}
-      {!isFinished && (
+      {!isFinished && (nextLabel || canCancel) && (
         <div className="flex gap-2 px-4 pb-4">
           {nextLabel && (
             <button onClick={handleNext} disabled={loading} className="btn-primary flex-1 justify-center text-sm py-2">

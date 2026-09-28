@@ -139,6 +139,8 @@ export function isValidLogoUrl(url: string, allowDataUrl: boolean): boolean {
   if (!url) return true
   if (allowDataUrl && /^data:image\/(png|jpeg|webp);base64,/.test(url)) return true
   if (url.length > LIMITS.logoUrl) return false
+  // Caminho relativo devolvido pela API quando PUBLIC_API_URL não está configurada
+  if (/^\/uploads\/logos\/[A-Za-z0-9_-]+\.(png|jpe?g|webp)$/i.test(url)) return true
   try {
     const u = new URL(url)
     return u.protocol === 'https:' || u.protocol === 'http:'

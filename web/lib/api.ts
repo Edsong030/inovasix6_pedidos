@@ -1,22 +1,21 @@
 import axios from 'axios'
-import Cookies from 'js-cookie'
 import { syncServerClock } from '@/lib/serverClock'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 
+/**
+ * Modo API: a sessão é um cookie HttpOnly gravado pela própria API (o JavaScript não lê
+ * nem envia token). withCredentials faz o navegador anexar o cookie nas chamadas.
+ */
 export const api = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 })
 
-// Injeta token em cada request
-api.interceptors.request.use((config) => {
-  const token = Cookies.get('token')
-  if (token) config.headers.Authorization = `Bearer ${token}`
-  return config
-})
+// Checagem de sessão e login tratam o 401 por conta própria (sem redirecionar)
+const NO_REDIRECT = ['/auth/me', '/auth/login', '/auth/logout']
 
-// Redireciona para login em 401
 api.interceptors.response.use(
   (res) => {
     // Alinha as contagens de prazo ao relógio do servidor
@@ -24,9 +23,9 @@ api.interceptors.response.use(
     return res
   },
   (err) => {
-    if (err.response?.status === 401 && typeof window !== 'undefined') {
-      Cookies.remove('token')
-      Cookies.remove('user')
+    const url: string = err.config?.url ?? ''
+    if (err.response?.status === 401 && typeof window !== 'undefined' && !NO_REDIRECT.some(p => url.endsWith(p))) {
+      // Sessão encerrada no servidor (logout, usuário desativado, senha ou papel alterados)
       window.location.href = '/login'
     }
     return Promise.reject(err)

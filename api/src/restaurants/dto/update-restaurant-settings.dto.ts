@@ -81,10 +81,11 @@ export class UpdateRestaurantSettingsDto {
   cnpj?: string | null;
 
   // ─── Identidade visual ─────────────────────────────────────────────────────
-  @ApiPropertyOptional({ description: 'URL http(s) da imagem (externa ou retornada por /uploads/logos)' })
+  @ApiPropertyOptional({ description: 'URL http(s) da imagem, ou o caminho /uploads/logos/<arquivo> devolvido pelo upload' })
   @IsOptional() @TrimOrNull()
   @MaxLength(500)
-  @Matches(/^https?:\/\/[^\s]+$/i, { message: 'Logo deve ser uma URL http(s) válida' })
+  // Caminho relativo só dentro de /uploads/logos, com nome simples (sem "..", sem subpastas)
+  @Matches(/^(https?:\/\/[^\s]+|\/uploads\/logos\/[A-Za-z0-9_-]+\.(png|jpe?g|webp))$/i, { message: 'Logo deve ser uma URL http(s) válida ou um arquivo enviado' })
   logoUrl?: string | null;
 
   @ApiPropertyOptional({ enum: ACCENT_COLORS })

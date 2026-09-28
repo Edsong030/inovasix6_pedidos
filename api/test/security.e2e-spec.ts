@@ -40,9 +40,16 @@ async function createRestaurant(ctx: Ctx, slug: string, roles: Array<[key: strin
 async function login(ctx: Ctx, key: string) {
   const res = await http.post('/api/auth/login').send({ email: `${key}@${ctx.slug}.test`, password: PASSWORD, restaurantSlug: ctx.slug });
   expect(res.status).toBe(200);
-  return res.body.accessToken as string;
+  return sessionCookie(res);
 }
-const auth = (key: string) => ({ Authorization: `Bearer ${tokens[key]}` });
+/** Cookie de sessão devolvido no login (o corpo não traz token). */
+function sessionCookie(res: request.Response) {
+  const set = ([] as string[]).concat(res.headers['set-cookie'] ?? []);
+  const c = set.find((v) => v.startsWith('inx_session='));
+  expect(c).toBeDefined();
+  return c!.split(';')[0];
+}
+const auth = (key: string) => ({ Cookie: tokens[key] });
 const order = (ctx: Ctx, extra: Record<string, unknown> = {}) => ({
   channel: 'COUNTER', paymentMethod: 'PIX', items: [{ productId: ctx.productId, quantity: 1 }], ...extra,
 });
@@ -106,15 +113,21 @@ describe('usuários: MANAGER nunca alcança ADMIN', () => {
     expect((await http.delete(`/api/users/${A.users.admin}`).set(auth('admin'))).status).toBe(403);
   });
 
-  it('dois ADMINs rebaixando um ao outro ao mesmo tempo: um consegue, o outro recebe 409', async () => {
+  it('dois ADMINs rebaixando um ao outro ao mesmo tempo: um consegue, o outro é recusado e sobra 1 ADMIN', async () => {
     const [r1, r2] = await Promise.all([
       http.patch(`/api/users/${A.users.admin2}`).set(auth('admin')).send({ role: 'MANAGER' }),
       http.patch(`/api/users/${A.users.admin}`).set(auth('admin2')).send({ role: 'MANAGER' }),
     ]);
-    expect([r1.status, r2.status].sort()).toEqual([200, 409]);
+    // Exatamente um vence. O outro é recusado conforme o instante em que chega: 409 (seria o
+    // último ADMIN), 403 (o papel, lido do banco, já é MANAGER) ou 401 (sessão já revogada).
+    const statuses = [r1.status, r2.status];
+    expect(statuses.filter((s) => s === 200)).toHaveLength(1);
+    expect([401, 403, 409]).toContain(statuses.find((s) => s !== 200));
     expect(await prisma.user.count({ where: { restaurantId: A.restaurantId, role: 'ADMIN', active: true } })).toBe(1);
-    // Restaura para os demais testes
+    // Restaura para os demais testes (mudar o papel derrubou a sessão do rebaixado: entra de novo)
     await prisma.user.updateMany({ where: { id: { in: [A.users.admin, A.users.admin2] } }, data: { role: 'ADMIN' } });
+    tokens.admin = await login(A, 'admin');
+    tokens.admin2 = await login(A, 'admin2');
   });
 
   it('ADMIN do restaurante A não altera usuário do B (404)', async () => {

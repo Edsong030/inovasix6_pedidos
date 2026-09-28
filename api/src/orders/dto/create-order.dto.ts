@@ -4,7 +4,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { OrderChannel, PaymentMethod } from '@prisma/client';
+import { OrderChannel, OrderStatus, PaymentMethod } from '@prisma/client';
 
 export class OrderItemDto {
   @ApiProperty()
@@ -94,8 +94,7 @@ export class CreateOrderDto {
 }
 
 export class UpdateOrderStatusDto {
-  @ApiProperty({ enum: ['RECEIVED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'] })
-  @IsString()
-  @IsNotEmpty()
-  status: string;
+  @ApiProperty({ enum: OrderStatus })
+  @IsEnum(OrderStatus, { message: 'Status inválido' })
+  status: OrderStatus;
 }

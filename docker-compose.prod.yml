@@ -60,6 +60,13 @@ services:
       PORT: 3001
       NODE_ENV: production
       ANOTA_AI_ENABLED: 'false'
+      # Sessão por cookie HttpOnly (Secure automático em produção)
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-strict}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+      # A API só escuta em 127.0.0.1: o único cliente direto é o proxy reverso local
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+      # URLs dos uploads: origem pública da API (nunca o Host da requisição). Vazio = relativa
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-}
     volumes:
       - uploads:/app/uploads
     ports:
