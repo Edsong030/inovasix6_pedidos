@@ -5,10 +5,12 @@
 #   migrate  – roda "prisma migrate deploy" (CLI do Prisma é dependência de desenvolvimento)
 #   runtime  – só dependências de produção; sem .env, sem seed, usuário sem privilégio
 #
+# Node 24 em todos os estágios (derivam de "base"): o mesmo major usado no CI.
+#
 # Segredos (DATABASE_URL, JWT_SECRET...) chegam apenas por variáveis de ambiente em
 # tempo de execução; nenhum arquivo .env entra na imagem (ver .dockerignore).
 
-FROM node:22-alpine AS base
+FROM node:24-alpine AS base
 # O motor do Prisma precisa de OpenSSL no Alpine
 RUN apk add --no-cache openssl
 WORKDIR /app

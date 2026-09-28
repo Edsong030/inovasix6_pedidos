@@ -400,8 +400,9 @@ FRONTEND_URL=http://localhost:3000   # origem(ns) do web (CORS e CSRF), separada
 # COOKIE_SECURE=true        # força Secure fora de produção (ex.: dev com HTTPS)
 # COOKIE_DOMAIN=            # só se web e API usarem subdomínios diferentes
 # TRUST_PROXY=1             # atrás de proxy reverso: IP real para o limite de login
+PUBLIC_API_URL=             # origem pública da API nas URLs de uploads (vazio = /uploads/... relativa)
 NODE_ENV=development
-ANOTA_AI_ENABLED=false
+ANOTA_AI_ENABLED=false      # manter false até confirmar com a Anota AI o cabeçalho/formato da assinatura
 ANOTA_AI_WEBHOOK_SECRET=
 ANOTA_AI_API_KEY=
 ```

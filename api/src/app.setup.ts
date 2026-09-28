@@ -1,7 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import type { NextFunction, Request, Response } from 'express';
-import { join } from 'path';
+import { uploadsRoot } from './uploads/file-signature';
 
 /** Origens do web aceitas (CORS e CSRF). FRONTEND_URL aceita lista separada por vírgula. */
 export function allowedOrigins(): string[] {
@@ -12,8 +12,9 @@ export function allowedOrigins(): string[] {
 }
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
-/** Webhooks de integrações vêm de servidores externos (sem cookie; autenticação própria). */
-const CSRF_EXEMPT = [/^\/api\/integrations\/[^/]+\/webhook\//];
+/** Webhooks de integrações: vêm de servidores externos (sem cookie), autenticam por assinatura
+ *  HMAC própria e ficam fora da verificação de origem; o corpo bruto é guardado para o HMAC. */
+const WEBHOOK_PATHS = [/^\/api\/integrations\/[^/]+\/webhook\//];
 
 /**
  * Proteção CSRF por verificação de origem (OWASP): em requisições que alteram dados,
@@ -22,7 +23,7 @@ const CSRF_EXEMPT = [/^\/api\/integrations\/[^/]+\/webhook\//];
  * não são navegadores e não carregam cookie de outro site.
  */
 export function originGuard(req: Request, res: Response, next: NextFunction) {
-  if (SAFE_METHODS.has(req.method) || CSRF_EXEMPT.some((r) => r.test(req.path))) return next();
+  if (SAFE_METHODS.has(req.method) || WEBHOOK_PATHS.some((r) => r.test(req.path))) return next();
   const origin = req.get('origin');
   if (!origin) return next();
   const self = `${req.protocol}://${req.get('host')}`;
@@ -44,10 +45,16 @@ export function configureApp(app: NestExpressApplication) {
 
   // Serve pasta uploads/ como arquivos estáticos via Express nativo
   // GET http://localhost:3001/uploads/products/arquivo.jpg
-  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
+  app.useStaticAssets(uploadsRoot(), { prefix: '/uploads' });
 
-  // Limite de body JSON (não afeta multipart — o multer cuida disso)
-  app.use(require('express').json({ limit: '1mb' }));
+  // Limite de body JSON (não afeta multipart — o multer cuida disso). Nos webhooks guarda
+  // também o corpo bruto: a assinatura HMAC é conferida sobre os bytes exatos recebidos.
+  app.use(require('express').json({
+    limit: '1mb',
+    verify: (req: Request & { rawBody?: Buffer }, _res: Response, buf: Buffer) => {
+      if (WEBHOOK_PATHS.some((r) => r.test(req.originalUrl?.split('?')[0] ?? ''))) req.rawBody = Buffer.from(buf);
+    },
+  }));
   app.use(require('express').urlencoded({ extended: true, limit: '1mb' }));
 
   app.use(originGuard);
