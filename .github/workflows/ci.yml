@@ -1,0 +1,124 @@
+# CI de pull requests: testes, auditoria de dependências e builds em Linux.
+#
+# • Roda em todo pull request (qualquer branch de destino) e manualmente.
+# • Só leitura do repositório; não usa segredos, não publica GitHub Pages, não faz deploy.
+# • Banco: PostgreSQL de serviço, descartável, criado e destruído pelo próprio job.
+#   Nenhum banco de desenvolvimento/produção é tocado; nenhum seed é executado.
+# O deploy da demo continua só em deploy-pages.yml (push na main).
+#
+# Node 24: o Jest só carrega pacotes publicados apenas como ESM (@nestjs/config,
+# @nestjs/passport) a partir do Node 24.9. A imagem de produção da API usa o mesmo major (Dockerfile).
+
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: API — auditoria, testes e build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: api
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          # Credenciais descartáveis só deste job (não são segredos: o banco some ao final)
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: inovasix_pedidos_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d inovasix_pedidos_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Os testes HTTP só aceitam banco cujo nome termina em _test (ver test/e2e-env.ts)
+      E2E_DATABASE_URL: postgresql://ci:ci@localhost:5432/inovasix_pedidos_test?schema=public
+      # Usado pelo prisma generate/build; aponta para o mesmo banco descartável
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/inovasix_pedidos_test?schema=public
+      NODE_ENV: test
+      ANOTA_AI_ENABLED: 'false'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Auditoria de dependências
+        run: npm audit
+
+      - name: Gerar Prisma Client
+        run: npx prisma generate
+
+      - name: Testes unitários
+        run: npm test
+
+      - name: Testes HTTP (Postgres de serviço)
+        run: npm run test:e2e
+
+      - name: Build
+        run: npm run build
+
+  web:
+    name: Web — auditoria, testes e builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Auditoria de dependências
+        run: npm audit
+
+      - name: Testes
+        run: npm test
+
+      - name: Build local (modo API)
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3001/api
+        run: npm run build
+
+      - name: Build demo (GitHub Pages, sem publicar)
+        env:
+          NEXT_PUBLIC_DEMO_MODE: 'true'
+          NEXT_PUBLIC_API_URL: ''
+        run: npm run build
+
+      # Com os builds prontos, os testes que conferem o HTML gerado (ex.: form method="post") também rodam
+      - name: Testes sobre o HTML gerado
+        run: npm test
