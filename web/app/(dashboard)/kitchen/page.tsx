@@ -108,7 +108,7 @@ function KitchenCard({ order, onAdvance }: { order: QueueOrder; onAdvance: (id: 
       <div className="flex-1 p-4 space-y-2">
         {order.items.map((item) => (
           <div key={item.id} className="flex gap-3">
-            <span className="flex-shrink-0 min-w-7 h-7 px-1.5 rounded-lg bg-surface-50 border border-card-border flex items-center justify-center text-sm font-bold text-brand-400 whitespace-nowrap">
+            <span className="shrink-0 min-w-7 h-7 px-1.5 rounded-lg bg-surface-50 border border-card-border flex items-center justify-center text-sm font-bold text-brand-400 whitespace-nowrap">
               {item.unit && item.unit !== 'UNIT' ? formatQuantity(item.quantity, item.unit) : Number(item.quantity)}
             </span>
             <div>

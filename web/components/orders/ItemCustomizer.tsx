@@ -72,7 +72,7 @@ export function ItemCustomizer({ product, initial, onConfirm, onClose }: {
       <div className="space-y-5">
         <div className="flex items-start justify-between gap-3">
           <p className="text-sm text-gray-400 min-w-0">{product.description}</p>
-          <p className="flex-shrink-0 text-sm text-gray-300 whitespace-nowrap">
+          <p className="shrink-0 text-sm text-gray-300 whitespace-nowrap">
             Preço base <span className="font-semibold text-white">{formatCurrency(Number(product.price))}{priceSuffix(product.saleUnit)}</span>
           </p>
         </div>
@@ -114,14 +114,14 @@ export function ItemCustomizer({ product, initial, onConfirm, onClose }: {
                         onChange={() => toggle(group.id, option.id)}
                         className="sr-only peer"
                       />
-                      <span aria-hidden="true" className={cn('flex h-5 w-5 flex-shrink-0 items-center justify-center border transition-colors',
+                      <span aria-hidden="true" className={cn('flex h-5 w-5 shrink-0 items-center justify-center border transition-colors',
                         group.multiple ? 'rounded-md' : 'rounded-full',
                         checked ? 'border-brand-400 bg-brand-600' : 'border-white/25',
                         'peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500')}>
                         {checked && <Check size={13} className="text-white" />}
                       </span>
                       <span className="min-w-0 flex-1 text-gray-100">{option.name}</span>
-                      <span className={cn('flex-shrink-0 text-xs whitespace-nowrap', option.available ? 'text-gray-400' : 'text-gray-500')}>
+                      <span className={cn('shrink-0 text-xs whitespace-nowrap', option.available ? 'text-gray-400' : 'text-gray-500')}>
                         {!option.available ? 'Indisponível' : option.price > 0 ? `+ ${formatCurrency(option.price)}` : 'sem custo'}
                       </span>
                     </label>
@@ -165,13 +165,13 @@ export function ItemCustomizer({ product, initial, onConfirm, onClose }: {
               </button>
               <input type="number" value={Number.isFinite(quantity) ? quantity : ''} min={step} step={step}
                 onChange={e => setQuantity(e.target.value === '' ? NaN : Number(e.target.value))}
-                className="w-14 bg-transparent text-center text-sm text-white outline-none" aria-label="Quantidade" />
+                className="w-14 bg-transparent text-center text-sm text-white outline-hidden" aria-label="Quantidade" />
               <button type="button" onClick={() => setQuantity(q => Math.round(((Number.isFinite(q) ? q : 0) + step) * 1000) / 1000)}
                 className="p-2.5 text-gray-300 hover:text-white" aria-label="Aumentar quantidade">
                 <Plus size={15} />
               </button>
             </div>
-            <button type="button" onClick={confirm} className="btn-primary flex-1 justify-center py-2.5 whitespace-nowrap min-w-[12rem]">
+            <button type="button" onClick={confirm} className="btn-primary flex-1 justify-center py-2.5 whitespace-nowrap min-w-48">
               {isEdit ? 'Salvar item' : 'Adicionar'} · {formatCurrency(total)}
             </button>
           </div>
