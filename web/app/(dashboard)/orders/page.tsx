@@ -138,7 +138,7 @@ export default function OrdersPage() {
 
       {/* Channel filter */}
       <div className="flex items-start lg:items-center gap-2 mb-5">
-        <Filter size={14} className="text-gray-500 flex-shrink-0 max-lg:mt-1.5" />
+        <Filter size={14} className="text-gray-500 shrink-0 max-lg:mt-1.5" />
         <div className="flex flex-wrap lg:flex-nowrap gap-1.5 lg:overflow-x-auto">
           {[['all', 'Todos'], ...Object.entries(ORDER_CHANNEL_LABEL)].map(([v, l]) => (
             <button

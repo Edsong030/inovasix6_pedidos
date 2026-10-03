@@ -47,7 +47,7 @@ function BusinessLogo({ src, size }: { src?: string; size: number }) {
       width={size}
       height={size}
       onError={() => setFailed(true)}
-      className="flex-shrink-0 rounded-lg object-contain bg-white/5 border border-white/10"
+      className="shrink-0 rounded-lg object-contain bg-white/5 border border-white/10"
       style={{ width: size, height: size }}
     />
   )
@@ -120,7 +120,7 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
                 value={business.type}
                 onChange={(e) => { setBusinessType(e.target.value as BusinessType); onNavigate?.() }}
                 aria-label={IS_DEMO ? 'Trocar demonstração' : 'Tipo de negócio'}
-                className="w-full rounded-lg border px-2.5 py-1.5 text-xs font-medium text-gray-200 outline-none transition-colors focus:ring-2 focus:ring-brand-500 [color-scheme:dark]"
+                className="w-full rounded-lg border px-2.5 py-1.5 text-xs font-medium text-gray-200 outline-hidden transition-colors focus:ring-2 focus:ring-brand-500 scheme-dark"
                 style={{ background: 'rgba(15, 22, 52, 0.9)', borderColor: 'rgba(96, 136, 255, 0.25)' }}
               >
                 {BUSINESS_TYPES.map((t) => {
@@ -138,7 +138,7 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
                 onChange={(e) => switchEstablishment(e.target.value)}
                 aria-label="Trocar estabelecimento"
                 title="Abre o login do estabelecimento escolhido"
-                className="w-full rounded-lg border px-2.5 py-1.5 text-xs font-medium text-gray-200 outline-none transition-colors focus:ring-2 focus:ring-brand-500 [color-scheme:dark]"
+                className="w-full rounded-lg border px-2.5 py-1.5 text-xs font-medium text-gray-200 outline-hidden transition-colors focus:ring-2 focus:ring-brand-500 scheme-dark"
                 style={{ background: 'rgba(15, 22, 52, 0.9)', borderColor: 'rgba(96, 136, 255, 0.25)' }}
               >
                 {DEMO_ESTABLISHMENTS.map((e) => (
@@ -183,7 +183,7 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
           style={{ borderTop: '1px solid rgba(99, 102, 241, 0.12)' }}
         >
           <div className="flex items-center gap-3 px-3 py-2 mb-2">
-            <div className="w-8 h-8 rounded-full bg-brand-600/30 flex items-center justify-center text-brand-400 text-sm font-bold flex-shrink-0">
+            <div className="w-8 h-8 rounded-full bg-brand-600/30 flex items-center justify-center text-brand-400 text-sm font-bold shrink-0">
               {user.name.charAt(0).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
@@ -278,7 +278,7 @@ export function MobileNav() {
           borderBottom: '1px solid rgba(99, 102, 241, 0.18)',
         }}
       >
-        <Link href="/dashboard" aria-label="Ir para o Dashboard" className="flex-shrink-0">
+        <Link href="/dashboard" aria-label="Ir para o Dashboard" className="shrink-0">
           <InovasixLogo size="xs" />
         </Link>
         {user && (
@@ -298,7 +298,7 @@ export function MobileNav() {
           aria-label="Abrir menu"
           aria-expanded={open}
           aria-controls="mobile-menu"
-          className="ml-auto flex-shrink-0 p-2 -mr-2 rounded-xl text-gray-200 hover:text-white hover:bg-white/5 transition-colors"
+          className="ml-auto shrink-0 p-2 -mr-2 rounded-xl text-gray-200 hover:text-white hover:bg-white/5 transition-colors"
         >
           <Menu size={22} />
         </button>
@@ -306,7 +306,7 @@ export function MobileNav() {
 
       {open && (
         <div className="lg:hidden fixed inset-0 z-50 no-print" role="dialog" aria-modal="true" aria-label="Menu de navegação">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={close} />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-xs animate-fade-in" onClick={close} />
           <aside
             id="mobile-menu"
             className="absolute inset-y-0 left-0 flex flex-col w-[280px] max-w-[85vw] overflow-y-auto overscroll-contain animate-slide-in-left"

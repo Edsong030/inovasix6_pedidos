@@ -156,7 +156,7 @@ export default function UsersPage() {
         {users.map(user => (
           <div key={user.id} className={`card p-4 transition-all ${!user.active ? 'opacity-50' : ''}`}>
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-full bg-brand-600/30 flex items-center justify-center text-brand-300 font-bold text-lg flex-shrink-0">
+              <div className="w-10 h-10 rounded-full bg-brand-600/30 flex items-center justify-center text-brand-300 font-bold text-lg shrink-0">
                 {user.name.charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">

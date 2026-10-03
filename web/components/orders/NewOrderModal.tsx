@@ -209,13 +209,13 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
       <form onSubmit={handleSubmit(onSubmit)}>
         {paused && (
           <p className="mb-4 flex items-start gap-2 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-            <TriangleAlert size={14} className="mt-0.5 flex-shrink-0" />
+            <TriangleAlert size={14} className="mt-0.5 shrink-0" />
             O recebimento de pedidos está pausado em Configurações. Novos pedidos não podem ser registrados até um administrador ou gerente reativar.
           </p>
         )}
         {settings?.orderMessage && (
           <p className="mb-4 flex items-start gap-2 rounded-xl border border-brand-500/20 bg-brand-500/10 px-3 py-2 text-xs text-gray-200">
-            <MessageSquareText size={14} className="mt-0.5 flex-shrink-0 text-brand-300" />
+            <MessageSquareText size={14} className="mt-0.5 shrink-0 text-brand-300" />
             {settings.orderMessage}
           </p>
         )}
@@ -272,7 +272,7 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
             )}
 
             {/* Encomenda */}
-            <div className={cn('rounded-xl border p-3 space-y-2', isPreorder ? 'border-violet-400/30 bg-violet-500/[0.06]' : 'border-card-border')}>
+            <div className={cn('rounded-xl border p-3 space-y-2', isPreorder ? 'border-violet-400/30 bg-violet-500/6' : 'border-card-border')}>
               <label className="flex items-center gap-2 text-sm text-gray-200">
                 <input
                   type="checkbox"
@@ -423,15 +423,15 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
                     <p className="text-sm font-medium text-white truncate group-hover:text-brand-300">{product.name}</p>
                     <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
                       {!product.available && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-500/20 text-gray-300">Indisponível</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-gray-500/20 text-gray-300">Indisponível</span>
                       )}
                       {product.madeToOrder && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-violet-500/15 text-violet-300">
                           Sob encomenda{product.minLeadTimeHours ? ` · ${product.minLeadTimeHours}h` : ''}
                         </span>
                       )}
                       {hasOptions(product.optionGroups) && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 inline-flex items-center gap-1">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-brand-500/15 text-brand-300 inline-flex items-center gap-1">
                           <SlidersHorizontal size={10} /> personalizável
                         </span>
                       )}
@@ -440,7 +440,7 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                  <div className="flex items-center gap-2 shrink-0 ml-3">
                     <span className="text-sm font-semibold text-brand-400 whitespace-nowrap">
                       {formatCurrency(Number(product.price))}{priceSuffix(product.saleUnit)}
                     </span>
