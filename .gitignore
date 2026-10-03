@@ -5,14 +5,15 @@ node_modules/
 
 # Build output
 dist/
+*.tsbuildinfo
 .next/
 out/
 build/
 
-# Environment files
+# Environment files (segredos): qualquer .env, exceto os exemplos versionados
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # Logs
 *.log

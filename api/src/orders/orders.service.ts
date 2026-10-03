@@ -3,24 +3,32 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto, UpdateOrderStatusDto } from './dto/create-order.dto';
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus, UserRole } from '@prisma/client';
 import { averagePrepMinutes } from './prep-time';
 import { estimateReadyAt } from './order-timing';
+import { readOptionGroups, resolveSelection } from '../products/product-options';
+import { canChangeOrderStatus, canSeeFinance, orderVisibility } from '../common/permissions';
 
 @Injectable()
 export class OrdersService {
   constructor(private prisma: PrismaService) {}
 
   private orderInclude = {
-    items: { include: { product: { select: { id: true, name: true, imageUrl: true } } } },
+    items: {
+      include: {
+        product: { select: { id: true, name: true, imageUrl: true } },
+        options: { orderBy: { sortOrder: 'asc' as const } },
+      },
+    },
     table: { select: { id: true, number: true } },
     user: { select: { id: true, name: true } },
   };
 
-  async findAll(restaurantId: string, filters?: { status?: string; channel?: string; date?: string }) {
+  async findAll(restaurantId: string, filters?: { status?: string; channel?: string; date?: string }, role?: UserRole) {
     const where: Record<string, unknown> = { restaurantId };
 
     if (filters?.status) where['status'] = filters.status;
@@ -31,6 +39,8 @@ export class OrdersService {
       next.setDate(next.getDate() + 1);
       where['createdAt'] = { gte: d, lt: next };
     }
+    // DELIVERY: só pedidos do canal DELIVERY (sobrepõe um filtro de canal enviado)
+    if (role) Object.assign(where, orderVisibility(role));
 
     return this.prisma.order.findMany({
       where,
@@ -39,9 +49,10 @@ export class OrdersService {
     });
   }
 
-  async findOne(id: string, restaurantId: string) {
+  /** Sem papel: uso interno. Com papel: pedido fora da visibilidade dele é "não encontrado". */
+  async findOne(id: string, restaurantId: string, role?: UserRole) {
     const order = await this.prisma.order.findFirst({
-      where: { id, restaurantId },
+      where: { id, restaurantId, ...(role && orderVisibility(role)) },
       include: this.orderInclude,
     });
     if (!order) throw new NotFoundException('Pedido não encontrado');
@@ -71,7 +82,8 @@ export class OrdersService {
       where: { id: { in: productIds }, restaurantId },
     });
 
-    if (products.length !== productIds.length) {
+    // O mesmo produto pode aparecer em mais de uma linha (ex.: pontos diferentes)
+    if (products.length !== new Set(productIds).size) {
       throw new BadRequestException('Um ou mais produtos não encontrados');
     }
 
@@ -104,18 +116,16 @@ export class OrdersService {
         throw new BadRequestException(`Quantidade de "${product.name}" deve ser um número inteiro`);
       }
 
-      // Adicionais: preços sempre do cadastro, nunca do cliente
-      const catalog = Array.isArray(product.addons)
-        ? (product.addons as Array<{ id: string; name: string; price: number }>)
-        : [];
-      const addons = (item.addonIds ?? []).map((addonId) => {
-        const addon = catalog.find((a) => a.id === addonId);
-        if (!addon) throw new BadRequestException(`Adicional inválido para "${product.name}"`);
-        return { id: addon.id, name: addon.name, price: Number(addon.price) };
-      });
-      const addonsPrice = addons.reduce((s, a) => s + a.price, 0);
+      if (!product.available) {
+        throw new BadRequestException(`"${product.name}" está indisponível no momento`);
+      }
 
-      const unitPrice = Number(product.price) + addonsPrice;
+      // Opções: validadas contra o cadastro DESTE produto (já filtrado pelo restaurantId);
+      // preço e nomes vêm do cadastro, nunca do cliente
+      const selection = resolveSelection(product.name, readOptionGroups(product.optionGroups), item.optionIds);
+      if ('error' in selection) throw new BadRequestException(selection.error);
+
+      const unitPrice = Math.round((Number(product.price) + selection.extra) * 100) / 100;
       const totalPrice = Math.round(unitPrice * item.quantity * 100) / 100;
       return {
         productId: item.productId,
@@ -124,8 +134,11 @@ export class OrdersService {
         unit: product.saleUnit,
         unitPrice,
         totalPrice,
-        notes: item.notes,
-        addons: addons.length ? addons : undefined,
+        notes: item.notes?.trim() || undefined,
+        // Snapshot do que foi escolhido, com o preço aplicado agora
+        options: selection.chosen.length
+          ? { create: selection.chosen.map((c, i) => ({ ...c, sortOrder: i })) }
+          : undefined,
       };
     });
 
@@ -133,51 +146,69 @@ export class OrdersService {
     const discount = dto.discount ?? 0;
     const total = subtotal - discount;
 
-    // Número sequencial do pedido por restaurante
-    const lastOrder = await this.prisma.order.findFirst({
-      where: { restaurantId },
-      orderBy: { orderNumber: 'desc' },
-      select: { orderNumber: true },
-    });
-    const orderNumber = (lastOrder?.orderNumber ?? 0) + 1;
+    // Tudo ou nada: mesa, número, pedido, itens e ocupação da mesa na mesma transação.
+    // Se qualquer passo falhar, nada é gravado e o número não é consumido.
+    return this.prisma.$transaction(async (tx) => {
+      // A mesa precisa ser do restaurante do token (nunca confiar no id enviado)
+      if (dto.tableId) {
+        const table = await tx.table.findFirst({
+          where: { id: dto.tableId, restaurantId },
+          select: { id: true },
+        });
+        if (!table) throw new NotFoundException('Mesa não encontrada');
+      }
 
-    const order = await this.prisma.order.create({
-      data: {
-        restaurantId,
-        userId,
-        tableId: dto.tableId,
-        orderNumber,
-        channel: dto.channel,
-        paymentMethod: dto.paymentMethod,
-        customerName: dto.customerName,
-        customerPhone: dto.customerPhone,
-        deliveryAddress: dto.deliveryAddress,
-        notes: dto.notes,
-        isPreorder,
-        scheduledFor,
-        // Relógio do servidor + tempo médio do negócio (nunca vem do navegador)
-        estimatedReadyAt: estimateReadyAt(new Date(), restaurant.avgPrepMinutes, scheduledFor),
-        subtotal,
-        discount,
-        total,
-        items: { create: itemsData },
-      },
-      include: this.orderInclude,
-    });
-
-    // Ocupa mesa se for salão
-    if (dto.tableId && dto.channel === 'DINE_IN') {
-      await this.prisma.table.update({
-        where: { id: dto.tableId },
-        data: { status: 'OCCUPIED' },
+      // Número sequencial por restaurante: UPDATE ... RETURNING trava a linha do
+      // restaurante até o fim da transação, então pedidos simultâneos recebem números
+      // distintos (o índice único restaurantId + orderNumber garante no banco)
+      const { orderSeq: orderNumber } = await tx.restaurant.update({
+        where: { id: restaurantId },
+        data: { orderSeq: { increment: 1 } },
+        select: { orderSeq: true },
       });
-    }
 
-    return order;
+      const order = await tx.order.create({
+        data: {
+          restaurantId,
+          userId,
+          tableId: dto.tableId,
+          orderNumber,
+          channel: dto.channel,
+          paymentMethod: dto.paymentMethod,
+          customerName: dto.customerName,
+          customerPhone: dto.customerPhone,
+          deliveryAddress: dto.deliveryAddress,
+          notes: dto.notes,
+          isPreorder,
+          scheduledFor,
+          // Relógio do servidor + tempo médio do negócio (nunca vem do navegador)
+          estimatedReadyAt: estimateReadyAt(new Date(), restaurant.avgPrepMinutes, scheduledFor),
+          subtotal,
+          discount,
+          total,
+          items: { create: itemsData },
+        },
+        include: this.orderInclude,
+      });
+
+      // Ocupa mesa se for salão (filtro por restaurantId também na escrita)
+      if (dto.tableId && dto.channel === 'DINE_IN') {
+        await tx.table.update({
+          where: { id: dto.tableId, restaurantId },
+          data: { status: 'OCCUPIED' },
+        });
+      }
+
+      return order;
+    });
   }
 
-  async updateStatus(id: string, restaurantId: string, dto: UpdateOrderStatusDto) {
-    const order = await this.findOne(id, restaurantId);
+  async updateStatus(id: string, restaurantId: string, dto: UpdateOrderStatusDto, role: UserRole) {
+    // 404 se o pedido não é do restaurante ou não é visível para o papel (ex.: DELIVERY x balcão)
+    const order = await this.findOne(id, restaurantId, role);
+    if (!canChangeOrderStatus(role, order, dto.status)) {
+      throw new ForbiddenException('Seu perfil não pode levar este pedido a este status');
+    }
 
     const validTransitions: Record<string, OrderStatus[]> = {
       RECEIVED: [OrderStatus.PREPARING, OrderStatus.CANCELLED],
@@ -204,7 +235,7 @@ export class OrdersService {
     if (status === OrderStatus.CANCELLED) timestamps['cancelledAt'] = now;
 
     const updated = await this.prisma.order.update({
-      where: { id },
+      where: { id, restaurantId },
       data: { status, ...timestamps },
       include: this.orderInclude,
     });
@@ -216,13 +247,15 @@ export class OrdersService {
     ) {
       const activeOrders = await this.prisma.order.count({
         where: {
+          restaurantId,
           tableId: order.tableId,
           status: { in: ['RECEIVED', 'PREPARING', 'READY'] },
         },
       });
       if (activeOrders === 0) {
-        await this.prisma.table.update({
-          where: { id: order.tableId },
+        // updateMany com restaurantId: nunca libera mesa de outro restaurante
+        await this.prisma.table.updateMany({
+          where: { id: order.tableId, restaurantId },
           data: { status: 'AVAILABLE' },
         });
       }
@@ -231,7 +264,8 @@ export class OrdersService {
     return updated;
   }
 
-  async getDashboard(restaurantId: string) {
+  async getDashboard(restaurantId: string, role: UserRole) {
+    const scope = { restaurantId, ...orderVisibility(role) };
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
@@ -245,24 +279,24 @@ export class OrdersService {
     ] = await Promise.all([
       this.prisma.order.count({
         where: {
-          restaurantId,
+          ...scope,
           createdAt: { gte: today, lt: tomorrow },
           status: { not: OrderStatus.CANCELLED },
         },
       }),
       this.prisma.order.count({
-        where: { restaurantId, status: OrderStatus.PREPARING },
+        where: { ...scope, status: OrderStatus.PREPARING },
       }),
       this.prisma.order.aggregate({
         where: {
-          restaurantId,
+          ...scope,
           createdAt: { gte: today, lt: tomorrow },
           status: { in: [OrderStatus.DELIVERED, OrderStatus.READY, OrderStatus.OUT_FOR_DELIVERY] },
         },
         _sum: { total: true },
       }),
       this.prisma.order.findMany({
-        where: { restaurantId, createdAt: { gte: today, lt: tomorrow } },
+        where: { ...scope, createdAt: { gte: today, lt: tomorrow } },
         include: this.orderInclude,
         orderBy: { createdAt: 'desc' },
         take: 10,
@@ -273,7 +307,7 @@ export class OrdersService {
     // null quando não há pedidos válidos — o frontend exibe "—", nunca "0 min".
     const completedToday = await this.prisma.order.findMany({
       where: {
-        restaurantId,
+        ...scope,
         createdAt: { gte: today, lt: tomorrow },
         status: { not: OrderStatus.CANCELLED },
         readyAt: { not: null },
@@ -285,7 +319,8 @@ export class OrdersService {
     return {
       ordersToday,
       inPreparation,
-      revenueToday: Number(revenueToday._sum.total ?? 0),
+      // Faturamento só para ADMIN/MANAGER (demais papéis recebem null)
+      revenueToday: canSeeFinance(role) ? Number(revenueToday._sum.total ?? 0) : null,
       avgPrepTime,
       recentOrders,
     };

@@ -14,6 +14,7 @@ import type { Order, OrderStatus } from '@/types'
 import { formatDeadline, type Timing, type TimingState } from '@/lib/orderTiming'
 import { serverNow } from '@/lib/serverClock'
 import { TimingPill, TIMING_STYLE } from '@/components/orders/OrderTiming'
+import { ItemOptions } from '@/components/orders/ItemOptions'
 import toast from 'react-hot-toast'
 
 const STATUS_COLOR: Record<string, string> = {
@@ -107,16 +108,12 @@ function KitchenCard({ order, onAdvance }: { order: QueueOrder; onAdvance: (id: 
       <div className="flex-1 p-4 space-y-2">
         {order.items.map((item) => (
           <div key={item.id} className="flex gap-3">
-            <span className="flex-shrink-0 min-w-7 h-7 px-1.5 rounded-lg bg-surface-50 border border-card-border flex items-center justify-center text-sm font-bold text-brand-400 whitespace-nowrap">
+            <span className="shrink-0 min-w-7 h-7 px-1.5 rounded-lg bg-surface-50 border border-card-border flex items-center justify-center text-sm font-bold text-brand-400 whitespace-nowrap">
               {item.unit && item.unit !== 'UNIT' ? formatQuantity(item.quantity, item.unit) : Number(item.quantity)}
             </span>
             <div>
               <p className="text-sm font-medium text-white">{item.productName}</p>
-              {!!item.addons?.length && (
-                <p className="text-xs text-brand-300 mt-0.5 flex items-center gap-1">
-                  <Plus size={10} /> {item.addons.map(a => a.name).join(', ')}
-                </p>
-              )}
+              <ItemOptions options={item.options} showPrices={false} className="mt-0.5" />
               {item.notes && (
                 <p className="text-xs text-amber-400 mt-0.5 flex items-center gap-1">
                   <AlertTriangle size={10} /> {item.notes}

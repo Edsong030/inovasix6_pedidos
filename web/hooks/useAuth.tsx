@@ -6,7 +6,7 @@ import {
 } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { saveAuth, clearAuth, getStoredUser, getToken } from '@/lib/auth'
+import { saveAuth, clearAuth, clearSession, getStoredUser } from '@/lib/auth'
 import {
   IS_DEMO, DEMO_CREDENTIALS, DEMO_USER,
   demoStore, getDemoSettings, saveDemoSettings, getDemoBusinessType, saveDemoBusinessType,
@@ -25,6 +25,11 @@ interface AuthContextType {
   logout:    () => void
   /** Troca o tipo de negócio (na demo, troca entre Restaurante/Lanchonete/Confeitaria Demo) */
   setBusinessType: (type: BusinessType) => Promise<void>
+  /**
+   * Modo API: abrir outro estabelecimento exige novo login (novo JWT). Encerra a sessão
+   * atual e leva ao Login com o estabelecimento pré-selecionado.
+   */
+  switchEstablishment: (slug: string) => void
   /** Atualiza dados exibidos do estabelecimento (ex.: nome na sidebar após salvar as configurações) */
   patchUser: (patch: Partial<Pick<AuthUser, 'restaurantName' | 'businessType'>>) => void
 }
@@ -43,9 +48,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
 
   useEffect(() => {
-    const stored = getStoredUser()
-    if (stored) setUser(IS_DEMO ? withDemoBusiness(stored) : stored)
-    setIsLoading(false)
+    // Demo: sessão local no navegador (dados fictícios, sem API)
+    if (IS_DEMO) {
+      const stored = getStoredUser()
+      if (stored) setUser(withDemoBusiness(stored))
+      setIsLoading(false)
+      return
+    }
+    // Modo API: a sessão está no cookie HttpOnly (o JavaScript não lê); quem responde se
+    // ela vale é a API. Cookies legíveis de versões anteriores (token/user) são apagados.
+    clearAuth()
+    let alive = true
+    api.get<AuthUser>('/auth/me')
+      .then(({ data }) => { if (alive) setUser(data) })
+      .catch(() => { if (alive) setUser(null) })
+      .finally(() => { if (alive) setIsLoading(false) })
+    return () => { alive = false }
   }, [])
 
   const login = useCallback(async (
@@ -72,12 +90,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // ── Modo normal: chama API real ──
+    // Nada da sessão anterior (token, dados de outro estabelecimento) segue para a nova
+    clearSession()
+    setUser(null)
     try {
+      // A API grava a sessão no cookie HttpOnly; o corpo traz só os dados do usuário
       const { data } = await api.post('/auth/login', { email, password, restaurantSlug })
-      saveAuth(data.accessToken, data.user)
-      setUser(data.user)
       toast.success(`Bem-vindo, ${data.user.name}!`)
-      router.push('/dashboard')
+      // Navegação completa: o painel começa do zero, só com a nova sessão
+      window.location.assign('/dashboard')
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string | string[] } } })
@@ -87,10 +108,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [router])
 
-  const logout = useCallback(() => {
-    clearAuth()
+  const logout = useCallback(async () => {
+    if (IS_DEMO) {
+      clearAuth()
+      setUser(null)
+      router.push('/login')
+      return
+    }
+    // Revoga a sessão no servidor e apaga o cookie; mesmo sem rede, sai localmente
+    await api.post('/auth/logout').catch(() => undefined)
+    clearSession()
     setUser(null)
-    router.push('/login')
+    window.location.assign('/login')
   }, [router])
 
   const setBusinessType = useCallback(async (type: BusinessType) => {
@@ -117,10 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       // A API devolve o nome já ajustado ao novo tipo (ou o personalizado, intacto)
       const { data } = await dataApi.updateBusinessType(type)
-      const next = { ...user, businessType: type, restaurantName: data.name || user.restaurantName }
-      const token = getToken()
-      if (token) saveAuth(token, next)
-      setUser(next)
+      setUser({ ...user, businessType: type, restaurantName: data.name || user.restaurantName })
       toast.success('Tipo de negócio atualizado')
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message
@@ -128,18 +154,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user])
 
+  const switchEstablishment = useCallback(async (slug: string) => {
+    // Sem troca de restaurantId no navegador: o token atual é descartado e só um novo
+    // login no slug escolhido dá acesso aos dados dele. A navegação completa (não SPA)
+    // descarta toda a memória da página: cache, carrinho, fila e estado das telas.
+    if (IS_DEMO) return   // na demo, troca-se o cenário (setBusinessType), sem sair
+    await api.post('/auth/logout').catch(() => undefined)
+    clearSession()
+    setUser(null)
+    window.location.assign(`/login?estabelecimento=${encodeURIComponent(slug)}`)
+  }, [])
+
   const patchUser = useCallback((patch: Partial<Pick<AuthUser, 'restaurantName' | 'businessType'>>) => {
     setUser(prev => {
       if (!prev) return prev
       const next = { ...prev, ...patch }
-      const token = getToken()
-      if (token) saveAuth(token, next)
+      // Demo: a sessão local guarda os dados exibidos; no modo API eles vêm de /auth/me
+      if (IS_DEMO) saveAuth(DEMO_TOKEN, next)
       return next
     })
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, setBusinessType, patchUser }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, setBusinessType, switchEstablishment, patchUser }}>
       {children}
     </AuthContext.Provider>
   )

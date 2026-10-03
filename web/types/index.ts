@@ -112,16 +112,40 @@ export interface Product {
   madeToOrder?: boolean
   /** Antecedência mínima da encomenda, em horas */
   minLeadTimeHours?: number | null
-  /** Adicionais pagos (ex.: bacon extra, molho extra) */
-  addons?: ProductAddon[] | null
-  /** Observações rápidas sugeridas (ex.: sem cebola, ponto da carne) */
+  /** Grupos de opções configuráveis (Tamanho, Adicionais, Remover ingredientes…) */
+  optionGroups?: ProductOptionGroup[] | null
+  /** Observações rápidas sugeridas (atalhos de texto para a observação do item) */
   observationOptions?: string[]
 }
 
-export interface ProductAddon {
+/** Opção de um grupo: nome, acréscimo no preço e disponibilidade. */
+export interface ProductOption {
   id: string
   name: string
   price: number
+  available: boolean
+}
+
+/** Grupo de opções do produto. Escolha única ⇒ max = 1; obrigatório ⇒ min ≥ 1. */
+export interface ProductOptionGroup {
+  id: string
+  name: string
+  required: boolean
+  min: number
+  max: number
+  multiple: boolean
+  options: ProductOption[]
+}
+
+/** Escolha gravada no item do pedido (snapshot do nome e preço do momento). */
+export interface OrderItemOption {
+  id?: string
+  groupId: string
+  groupName: string
+  optionId: string
+  optionName: string
+  /** A API envia Decimal como string */
+  price: number | string
 }
 
 export interface Table {
@@ -142,7 +166,8 @@ export interface OrderItem {
   unitPrice: number
   totalPrice: number
   notes?: string
-  addons?: ProductAddon[] | null
+  /** Opções escolhidas (snapshot) */
+  options?: OrderItemOption[]
   product?: { name: string; imageUrl?: string }
 }
 
@@ -214,6 +239,8 @@ export interface AuthUser {
   role: UserRole
   restaurantId: string
   restaurantName: string
+  /** Slug do estabelecimento do login (mesmo valor do JWT) */
+  restaurantSlug?: string
   /** Tipo de negócio do estabelecimento (padrão: RESTAURANT) */
   businessType?: BusinessType
   active?: boolean

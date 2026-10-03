@@ -8,6 +8,8 @@ import { Header } from '@/components/layout/Header'
 import { Modal } from '@/components/ui/Modal'
 import { PageLoader } from '@/components/ui/LoadingSpinner'
 import { ROLE_LABEL } from '@/types'
+import { useAuth } from '@/hooks/useAuth'
+import { MANAGEABLE_ROLES, canManageRole, passwordProblem } from '@/lib/permissions'
 import type { AuthUser, UserRole } from '@/types'
 import toast from 'react-hot-toast'
 
@@ -24,21 +26,29 @@ interface UserFormData {
 }
 
 function UserForm({
-  initial, onSave, onCancel,
+  initial, onSave, onCancel, roleOptions, lockRole,
 }: {
   initial?: Partial<AuthUser>
   onSave: (data: UserFormData) => Promise<void>
   onCancel: () => void
+  /** Papéis que quem está logado pode atribuir */
+  roleOptions: readonly UserRole[]
+  /** Editando o próprio usuário: o papel não pode ser alterado */
+  lockRole: boolean
 }) {
   const [name,    setName]    = useState(initial?.name || '')
   const [email,   setEmail]   = useState(initial?.email || '')
   const [password,setPassword]= useState('')
-  const [role,    setRole]    = useState<UserRole>(initial?.role || 'ATTENDANT')
+  const [role,    setRole]    = useState<UserRole>(initial?.role || roleOptions[roleOptions.length - 1] || 'ATTENDANT')
   const [saving,  setSaving]  = useState(false)
+
+  // Senha nova (criação ou troca): mesma regra da API
+  const pwError = password ? passwordProblem(password) : null
 
   const handle = async () => {
     if (!name || !email) return
     if (!initial?.id && !password) return
+    if (pwError) return
     setSaving(true)
     try { await onSave({ name, email, password, role }) }
     finally { setSaving(false) }
@@ -58,19 +68,21 @@ function UserForm({
         <label className="block text-sm font-medium text-gray-300 mb-1.5">
           Senha {initial?.id ? '(deixe em branco para manter)' : '*'}
         </label>
-        <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="input" placeholder="Mínimo 6 caracteres" />
+        <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="input" placeholder="Mínimo 10 caracteres, com letras e números" aria-invalid={!!pwError} />
+        {pwError && <p className="mt-1 text-xs text-amber-300">{pwError}</p>}
       </div>
       <div>
         <label className="block text-sm font-medium text-gray-300 mb-1.5">Perfil *</label>
-        <select value={role} onChange={e => setRole(e.target.value as UserRole)} className="input">
-          {Object.entries(ROLE_LABEL).map(([v, l]) => (
-            <option key={v} value={v}>{l}</option>
+        <select value={role} onChange={e => setRole(e.target.value as UserRole)} className="input disabled:opacity-60" disabled={lockRole}>
+          {(lockRole ? [role] : roleOptions).map(v => (
+            <option key={v} value={v}>{ROLE_LABEL[v]}</option>
           ))}
         </select>
+        {lockRole && <p className="mt-1 text-xs text-gray-500">Você não pode alterar o próprio perfil.</p>}
       </div>
       <div className="flex gap-3 pt-2">
         <button onClick={onCancel} className="btn-secondary flex-1 justify-center">Cancelar</button>
-        <button onClick={handle} disabled={!name || !email || (!initial?.id && !password) || saving} className="btn-primary flex-1 justify-center">
+        <button onClick={handle} disabled={!name || !email || (!initial?.id && !password) || !!pwError || saving} className="btn-primary flex-1 justify-center">
           {saving ? <Loader2 size={14} className="animate-spin" /> : null}
           {initial?.id ? 'Salvar' : 'Criar Usuário'}
         </button>
@@ -84,6 +96,11 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true)
   const [modal,   setModal]   = useState(false)
   const [editUser,setEditUser]= useState<AuthUser | undefined>()
+  const me = useAuth().user
+  // Espelho da regra da API: MANAGER não altera ADMIN nem MANAGER; ninguém se desativa
+  const roleOptions = me ? MANAGEABLE_ROLES[me.role] : []
+  const canEdit       = (u: AuthUser) => !!me && (u.id === me.id || canManageRole(me.role, u.role))
+  const canDeactivate = (u: AuthUser) => !!me && u.id !== me.id && canManageRole(me.role, u.role)
 
   const load = useCallback(async () => {
     try {
@@ -139,7 +156,7 @@ export default function UsersPage() {
         {users.map(user => (
           <div key={user.id} className={`card p-4 transition-all ${!user.active ? 'opacity-50' : ''}`}>
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-full bg-brand-600/30 flex items-center justify-center text-brand-300 font-bold text-lg flex-shrink-0">
+              <div className="w-10 h-10 rounded-full bg-brand-600/30 flex items-center justify-center text-brand-300 font-bold text-lg shrink-0">
                 {user.name.charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
@@ -155,13 +172,13 @@ export default function UsersPage() {
               </div>
             </div>
             <div className="flex gap-2 mt-3">
-              <button
+              {canEdit(user) && <button
                 onClick={() => { setEditUser(user); setModal(true) }}
                 className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs text-gray-400 hover:text-white border border-card-border hover:bg-card-hover rounded-lg transition-colors"
               >
                 <Pencil size={12} /> Editar
-              </button>
-              {user.active && (
+              </button>}
+              {user.active && canDeactivate(user) && (
                 <button
                   onClick={() => deactivate(user)}
                   className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs text-gray-400 hover:text-red-400 border border-card-border hover:bg-red-500/10 rounded-lg transition-colors"
@@ -184,6 +201,8 @@ export default function UsersPage() {
           initial={editUser}
           onSave={save}
           onCancel={() => { setModal(false); setEditUser(undefined) }}
+          roleOptions={roleOptions}
+          lockRole={!!editUser && editUser.id === me?.id}
         />
       </Modal>
     </div>

@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { Prisma, Restaurant, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateRestaurantSettingsDto } from './dto/update-restaurant-settings.dto';
-import { DEFAULT_BUSINESS_NAMES, defaultOpeningHours, isDefaultBusinessName, type OpeningHour } from './settings.constants';
+import { DEFAULT_BUSINESS_NAMES, DEMO_TENANT_TYPES, defaultOpeningHours, isDefaultBusinessName, type OpeningHour } from './settings.constants';
 
 /**
  * Somente campos públicos do estabelecimento. Nada de segredos, tokens
@@ -85,6 +85,12 @@ export class RestaurantsService {
     // Trocar o tipo de negócio muda textos e recursos do sistema inteiro: só o administrador
     if (dto.businessType && dto.businessType !== current.businessType && role !== UserRole.ADMIN) {
       throw new ForbiddenException('Somente o administrador pode alterar o tipo de negócio');
+    }
+    // Demonstração: trocar só o tipo deixaria o nome "Confeitaria Demo" sobre o cardápio
+    // e os pedidos do restaurante. Cada tipo tem o seu estabelecimento próprio.
+    const demoType = DEMO_TENANT_TYPES[current.slug];
+    if (demoType && dto.businessType && dto.businessType !== demoType) {
+      throw new BadRequestException('Estabelecimento de demonstração tem tipo fixo. Para ver outro tipo, troque de estabelecimento e entre novamente.');
     }
 
     if (dto.openingHours) {

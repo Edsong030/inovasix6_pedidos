@@ -1,35 +1,84 @@
 import {
-  ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsInt, IsNotEmpty, IsNumber,
+  ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsEnum, IsInt, IsNotEmpty, IsNumber,
   IsOptional, IsString, Max, MaxLength, Min, ValidateNested,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { SaleUnit } from '@prisma/client';
 
-/** Adicional pago de um produto (ex.: "Bacon extra", "Molho extra"). */
-export class ProductAddonDto {
-  @ApiProperty({ example: 'bacon-extra' })
+/** Opção de um grupo (ex.: "Bacon" em "Adicionais", "Médio" em "Tamanho"). */
+export class ProductOptionDto {
+  @ApiProperty({ example: 'bacon' })
   @IsString()
   @IsNotEmpty()
   @MaxLength(60)
   id: string;
 
-  @ApiProperty({ example: 'Bacon extra' })
+  @ApiProperty({ example: 'Bacon' })
   @IsString()
   @IsNotEmpty()
   @MaxLength(80)
   name: string;
 
-  @ApiProperty({ example: 4.5 })
-  @IsNumber()
+  @ApiProperty({ example: 5, description: 'Acréscimo no preço do item (0 para opções sem custo)' })
+  @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
+  @Max(99_999)
   @Type(() => Number)
   price: number;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  available?: boolean;
+}
+
+/** Grupo de opções configurável (sem regras fixas por tipo de negócio). */
+export class ProductOptionGroupDto {
+  @ApiProperty({ example: 'adicionais' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(60)
+  id: string;
+
+  @ApiProperty({ example: 'Adicionais' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(80)
+  name: string;
+
+  @ApiProperty({ description: 'Obrigatório escolher' })
+  @IsBoolean()
+  required: boolean;
+
+  @ApiProperty({ description: 'Mínimo de escolhas' })
+  @IsInt()
+  @Min(0)
+  @Max(30)
+  min: number;
+
+  @ApiProperty({ description: 'Máximo de escolhas (escolha única = 1)' })
+  @IsInt()
+  @Min(1)
+  @Max(30)
+  max: number;
+
+  @ApiProperty({ description: 'false = escolha única; true = múltipla' })
+  @IsBoolean()
+  multiple: boolean;
+
+  @ApiProperty({ type: [ProductOptionDto] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(30)
+  @ValidateNested({ each: true })
+  @Type(() => ProductOptionDto)
+  options: ProductOptionDto[];
 }
 
 /**
  * Campos de venda comuns a criação e edição de produto:
- * unidade, encomenda, adicionais e observações sugeridas.
+ * unidade, encomenda, grupos de opções e observações sugeridas.
  */
 export class ProductSaleOptionsDto {
   @ApiPropertyOptional({ enum: SaleUnit, default: SaleUnit.UNIT })
@@ -49,13 +98,13 @@ export class ProductSaleOptionsDto {
   @Max(24 * 60)
   minLeadTimeHours?: number | null;
 
-  @ApiPropertyOptional({ type: [ProductAddonDto] })
+  @ApiPropertyOptional({ type: [ProductOptionGroupDto], description: 'Grupos de opções (Tamanho, Adicionais, Remover ingredientes…)' })
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(30)
+  @ArrayMaxSize(20)
   @ValidateNested({ each: true })
-  @Type(() => ProductAddonDto)
-  addons?: ProductAddonDto[];
+  @Type(() => ProductOptionGroupDto)
+  optionGroups?: ProductOptionGroupDto[];
 
   @ApiPropertyOptional({ type: [String], example: ['Sem cebola', 'Ponto: mal passado'] })
   @IsOptional()

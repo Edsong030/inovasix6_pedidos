@@ -46,6 +46,9 @@ model Restaurant {
   openingHours            Json?
   avgPrepMinutes          Int      @default(30)
   acceptingOrders         Boolean  @default(true)
+  /// Ultimo numero de pedido emitido. Incrementado atomicamente (UPDATE ... RETURNING) ao criar
+  /// um pedido: pedidos simultaneos do mesmo restaurante recebem numeros distintos e sequenciais
+  orderSeq                Int      @default(0)
   showUnavailableProducts Boolean  @default(false)
   orderMessage            String?
   createdAt    DateTime     @default(now())
@@ -84,9 +87,28 @@ model User {
 
   restaurant Restaurant @relation(fields: [restaurantId], references: [id])
   orders     Order[]
+  sessions   UserSession[]
 
   @@unique([email, restaurantId])
   @@map("users")
+}
+
+/// Sessao de login (cookie HttpOnly). O JWT so carrega o id da sessao; cada requisicao
+/// confere aqui se ela continua valida. Logout revoga a sessao; desativar o usuario,
+/// trocar a senha ou o papel revoga todas as sessoes dele (efeito na requisicao seguinte).
+model UserSession {
+  id           String    @id @default(cuid())
+  userId       String
+  restaurantId String
+  createdAt    DateTime  @default(now())
+  expiresAt    DateTime
+  revokedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("user_sessions")
 }
 
 // ─── Cardápio ────────────────────────────────────────────────────────────────
@@ -129,8 +151,9 @@ model Product {
   madeToOrder        Boolean  @default(false)
   /// Antecedência mínima para encomenda, em horas
   minLeadTimeHours   Int?
-  /// Adicionais pagos: [{ id, name, price }]
-  addons             Json?
+  /// Grupos de opções: [{ id, name, required, min, max, multiple, options: [{ id, name, price, available }] }]
+  /// (ex.: Tamanho, Adicionais, Remover ingredientes). Validados em src/products/product-options.ts
+  optionGroups       Json?
   /// Observações rápidas sugeridas (ex.: "Sem cebola", "Ponto: mal passado")
   observationOptions String[] @default([])
   createdAt          DateTime @default(now())
@@ -229,6 +252,8 @@ model Order {
   table      Table?      @relation(fields: [tableId], references: [id])
   items      OrderItem[]
 
+  /// Numero do pedido unico por restaurante (o contador fica em Restaurant.orderSeq)
+  @@unique([restaurantId, orderNumber])
   @@map("orders")
 }
 
@@ -243,13 +268,30 @@ model OrderItem {
   unitPrice   Decimal  @db.Decimal(10, 2)
   totalPrice  Decimal  @db.Decimal(10, 2)
   notes       String?
-  /// Adicionais escolhidos: [{ id, name, price }]
-  addons      Json?
 
-  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id])
+  order   Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product           @relation(fields: [productId], references: [id])
+  options OrderItemOption[]
 
   @@map("order_items")
+}
+
+/// Escolha feita no item do pedido. Snapshot: nome e preço aplicados no momento do pedido
+/// (mudanças posteriores no cardápio não alteram pedidos já feitos).
+model OrderItemOption {
+  id          String  @id @default(cuid())
+  orderItemId String
+  groupId     String
+  groupName   String
+  optionId    String
+  optionName  String
+  price       Decimal @default(0) @db.Decimal(10, 2)
+  sortOrder   Int     @default(0)
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@index([orderItemId])
+  @@map("order_item_options")
 }
 
 // ─── Integração Anota AI ─────────────────────────────────────────────────────

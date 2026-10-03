@@ -9,6 +9,9 @@ import { dataApi } from '@/hooks/useApi'
 import type { Order } from '@/types'
 import { formatQuantity } from '@/lib/business'
 import { OrderTimingLine, useOrderTiming } from '@/components/orders/OrderTiming'
+import { ItemOptions } from '@/components/orders/ItemOptions'
+import { useAuth } from '@/hooks/useAuth'
+import { canChangeOrderStatus } from '@/lib/permissions'
 
 interface OrderCardProps {
   order: Order
@@ -21,13 +24,16 @@ interface OrderCardProps {
 export function OrderCard({ order, now, onStatusChange, onCancel }: OrderCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [loading, setLoading]   = useState(false)
+  const { user } = useAuth()
 
   const elapsed     = Math.max(0, Math.floor((now - new Date(order.createdAt).getTime()) / 60000))
   // Destaque pelo prazo (previsão de pronto), não por tempo fixo desde a criação
   const timing      = useOrderTiming()(order, now)
-  const nextStatus  = NEXT_STATUS[order.status]
-  const nextLabel   = NEXT_STATUS_LABEL[order.status]
-  const canCancel   = !['DELIVERED', 'CANCELLED'].includes(order.status)
+  // Só mostra a ação que o perfil pode executar (a API recusa as demais)
+  const next        = NEXT_STATUS[order.status]
+  const nextStatus  = next && canChangeOrderStatus(user?.role, order, next) ? next : null
+  const nextLabel   = nextStatus ? NEXT_STATUS_LABEL[order.status] : null
+  const canCancel   = !['DELIVERED', 'CANCELLED'].includes(order.status) && canChangeOrderStatus(user?.role, order, 'CANCELLED')
   const isFinished  = ['DELIVERED', 'CANCELLED'].includes(order.status)
 
   const handleNext = async () => {
@@ -59,7 +65,7 @@ export function OrderCard({ order, now, onStatusChange, onCancel }: OrderCardPro
             <StatusBadge status={order.status} />
             <ChannelBadge channel={order.channel} />
           </div>
-          <div className="flex items-center gap-1 text-xs text-gray-500 flex-shrink-0">
+          <div className="flex items-center gap-1 text-xs text-gray-500 shrink-0">
             <Clock size={12} />
             <span title="Tempo desde o recebimento">
               {elapsed}min
@@ -118,12 +124,10 @@ export function OrderCard({ order, now, onStatusChange, onCancel }: OrderCardPro
               <div key={item.id} className="flex items-start justify-between text-sm gap-2">
                 <div>
                   <span className="text-white">{formatQuantity(item.quantity, item.unit)} {item.productName}</span>
-                  {!!item.addons?.length && (
-                    <p className="text-xs text-brand-300 mt-0.5">+ {item.addons.map(a => a.name).join(', ')}</p>
-                  )}
+                  <ItemOptions options={item.options} className="mt-0.5" />
                   {item.notes && <p className="text-xs text-amber-400 mt-0.5">⚠ {item.notes}</p>}
                 </div>
-                <span className="text-gray-400 flex-shrink-0">{formatCurrency(Number(item.totalPrice))}</span>
+                <span className="text-gray-400 shrink-0">{formatCurrency(Number(item.totalPrice))}</span>
               </div>
             ))}
           </div>
@@ -149,7 +153,7 @@ export function OrderCard({ order, now, onStatusChange, onCancel }: OrderCardPro
       )}
 
       {/* Actions */}
-      {!isFinished && (
+      {!isFinished && (nextLabel || canCancel) && (
         <div className="flex gap-2 px-4 pb-4">
           {nextLabel && (
             <button onClick={handleNext} disabled={loading} className="btn-primary flex-1 justify-center text-sm py-2">

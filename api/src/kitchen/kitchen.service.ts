@@ -15,7 +15,10 @@ export class KitchenService {
         },
         include: {
           items: {
-            include: { product: { select: { name: true } } },
+            include: {
+              product: { select: { name: true } },
+              options: { orderBy: { sortOrder: 'asc' } },
+            },
           },
           table: { select: { number: true } },
         },

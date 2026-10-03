@@ -28,11 +28,11 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
   return createPortal(
     // p-4: margem de 16px em volta; o modal nunca passa da altura da tela e rola por dentro
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-xs" onClick={onClose} />
       <div className={cn('relative w-full card p-6 max-sm:p-4 animate-slide-up flex flex-col max-h-full', widths[size])}>
-        <div className="flex items-center justify-between gap-3 mb-6 max-sm:mb-4 flex-shrink-0">
+        <div className="flex items-center justify-between gap-3 mb-6 max-sm:mb-4 shrink-0">
           <h2 className="text-lg font-semibold text-white min-w-0 truncate">{title}</h2>
-          <button onClick={onClose} aria-label="Fechar" className="p-1.5 rounded-lg hover:bg-card-hover transition-colors text-gray-400 hover:text-white flex-shrink-0">
+          <button onClick={onClose} aria-label="Fechar" className="p-1.5 rounded-lg hover:bg-card-hover transition-colors text-gray-400 hover:text-white shrink-0">
             <X size={18} />
           </button>
         </div>

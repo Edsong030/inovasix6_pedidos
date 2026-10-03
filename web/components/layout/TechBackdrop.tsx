@@ -4,6 +4,7 @@
  * Os desenhos ficam ancorados no topo, nas laterais e nos cantos, sem
  * esticar; o centro fica mais limpo para os painéis.
  */
+import type { ReactElement } from 'react'
 
 const TRACE = '#4d7cff'
 const NODE  = '#8fb0ff'
@@ -32,7 +33,7 @@ function Traces({ d, opacity = 0.7, width = 1.4, color = TRACE }: { d: string[];
 function DotMatrix({ x, y, cols, rows, gap = 9, r = 1.1, color = '#6f93ff', opacity = 0.45 }: {
   x: number; y: number; cols: number; rows: number; gap?: number; r?: number; color?: string; opacity?: number
 }) {
-  const dots: JSX.Element[] = []
+  const dots: ReactElement[] = []
   for (let i = 0; i < cols; i++) {
     for (let j = 0; j < rows; j++) {
       dots.push(<circle key={`${i}-${j}`} cx={x + i * gap} cy={y + j * gap} r={r} />)

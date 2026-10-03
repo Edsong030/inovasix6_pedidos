@@ -12,9 +12,11 @@ import { Header } from '@/components/layout/Header'
 import { Modal } from '@/components/ui/Modal'
 import { PageLoader } from '@/components/ui/LoadingSpinner'
 import { formatCurrency, cn } from '@/lib/utils'
-import type { Category, Product, ProductAddon, SaleUnit } from '@/types'
+import type { Category, Product, SaleUnit } from '@/types'
 import { SALE_UNIT_LABEL } from '@/types'
 import { priceSuffix } from '@/lib/business'
+import { normalizeOptionGroups } from '@/lib/productOptions'
+import { OptionGroupsEditor, fromDrafts, toDrafts, type GroupDraft } from '@/components/menu/OptionGroupsEditor'
 import toast from 'react-hot-toast'
 
 // ─── Placeholder de fallback ──────────────────────────────────────────────────
@@ -22,7 +24,7 @@ function MediaPlaceholder({ name, className }: { name: string; className?: strin
   const colors = ['from-brand-700 to-brand-900','from-purple-700 to-purple-900','from-emerald-700 to-emerald-900','from-amber-700 to-amber-900','from-rose-700 to-rose-900','from-sky-700 to-sky-900']
   const idx = name.charCodeAt(0) % colors.length
   return (
-    <div className={cn(`bg-gradient-to-br ${colors[idx]} flex flex-col items-center justify-center gap-1`, className)}>
+    <div className={cn(`bg-linear-to-br/srgb ${colors[idx]} flex flex-col items-center justify-center gap-1`, className)}>
       <ImageOff size={20} className="text-white/40" />
       <span className="text-white/60 text-xs text-center px-2 line-clamp-2 leading-tight">{name}</span>
     </div>
@@ -266,7 +268,7 @@ function ImagePicker({ value, onChange, suggestedUrl }: { value: string; onChang
         </div>
       ) : IS_DEMO ? (
         <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300 flex items-start gap-2">
-          <span className="text-amber-400 mt-0.5 flex-shrink-0">aviso</span>
+          <span className="text-amber-400 mt-0.5 shrink-0">aviso</span>
           <span>Upload local nao disponivel no modo demo (GitHub Pages). Use uma URL externa.</span>
         </div>
       ) : (
@@ -454,7 +456,7 @@ function VideoPicker({ value, onChange }: { value: string; onChange: (url: strin
       {/* Upload local — demo bloqueado */}
       {mode === 'upload' && IS_DEMO && (
         <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300 flex items-start gap-2">
-          <span className="flex-shrink-0 mt-0.5">&#9888;</span>
+          <span className="shrink-0 mt-0.5">&#9888;</span>
           <span>Upload local nao disponivel no modo demo. Use uma URL externa.</span>
         </div>
       )}
@@ -487,7 +489,7 @@ function VideoPicker({ value, onChange }: { value: string; onChange: (url: strin
         <div className="flex items-start gap-3 p-2 bg-surface-50 rounded-xl border border-card-border">
           <video
             src={asset(value)}
-            className="w-28 h-16 rounded-lg object-cover bg-black flex-shrink-0"
+            className="w-28 h-16 rounded-lg object-cover bg-black shrink-0"
             muted preload="metadata"
             onError={() => setVidError(true)}
           />
@@ -521,13 +523,11 @@ function ProductForm({ initial, categories, onSave, onCancel }: { initial?: Part
   const [videoUrl,  setVideoUrl]  = useState(initial?.videoUrl || '')
   const [available, setAvailable] = useState(initial?.available ?? true)
   const [saving,    setSaving]    = useState(false)
-  // Venda: unidade, encomenda, adicionais e observações sugeridas
+  // Venda: unidade, encomenda, grupos de opções e observações sugeridas
   const [saleUnit,    setSaleUnit]    = useState<SaleUnit>(initial?.saleUnit ?? 'UNIT')
   const [madeToOrder, setMadeToOrder] = useState(initial?.madeToOrder ?? false)
   const [leadHours,   setLeadHours]   = useState(initial?.minLeadTimeHours != null ? String(initial.minLeadTimeHours) : '')
-  const [addons,      setAddons]      = useState<Array<{ id: string; name: string; price: string }>>(
-    (initial?.addons ?? []).map(a => ({ id: a.id, name: a.name, price: String(a.price) })),
-  )
+  const [groups,      setGroups]      = useState<GroupDraft[]>(() => toDrafts(initial?.optionGroups))
   const [observations, setObservations] = useState((initial?.observationOptions ?? []).join(', '))
 
   const suggested = SUGGESTED_IMAGES[name] || ''
@@ -537,16 +537,9 @@ function ProductForm({ initial, categories, onSave, onCancel }: { initial?: Part
     if (!price || isNaN(parseFloat(price))) { toast.error('Preco invalido'); return }
     if (!catId) { toast.error('Selecione uma categoria'); return }
 
-    const cleanAddons: ProductAddon[] = []
-    for (const a of addons) {
-      if (!a.name.trim()) continue
-      const p = parseFloat(a.price.replace(',', '.'))
-      if (isNaN(p) || p < 0) { toast.error(`Preco invalido no adicional "${a.name}"`); return }
-      const base = a.id || a.name.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-      let id = base || 'adicional'
-      for (let n = 2; cleanAddons.some(x => x.id === id); n++) id = `${base}-${n}`
-      cleanAddons.push({ id, name: a.name.trim(), price: p })
-    }
+    // Mesma validação da API (mín./máx., nomes, preços, itens repetidos)
+    const optionGroups = normalizeOptionGroups(fromDrafts(groups))
+    if ('error' in optionGroups) { toast.error(optionGroups.error); return }
     const lead = leadHours.trim() === '' ? null : parseInt(leadHours, 10)
     if (lead !== null && (isNaN(lead) || lead < 0)) { toast.error('Prazo minimo invalido'); return }
 
@@ -564,7 +557,7 @@ function ProductForm({ initial, categories, onSave, onCancel }: { initial?: Part
         saleUnit,
         madeToOrder,
         minLeadTimeHours: madeToOrder ? lead : null,
-        addons:      cleanAddons,
+        optionGroups: optionGroups.groups,
         observationOptions: observations.split(',').map(s => s.trim()).filter(Boolean),
       })
     } finally { setSaving(false) }
@@ -611,37 +604,13 @@ function ProductForm({ initial, categories, onSave, onCancel }: { initial?: Part
         Produto sob encomenda (pede data de retirada/entrega)
       </label>
 
-      {/* Adicionais */}
-      <div>
-        <div className="flex items-center justify-between mb-1.5">
-          <label className="text-xs font-medium text-gray-400">Adicionais (opcional)</label>
-          <button type="button" onClick={() => setAddons([...addons, { id: '', name: '', price: '' }])}
-            className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1">
-            <Plus size={12} /> Adicionar
-          </button>
-        </div>
-        {addons.length === 0 ? (
-          <p className="text-xs text-gray-600">Ex.: bacon extra, molho extra, topo personalizado.</p>
-        ) : (
-          <div className="space-y-1.5">
-            {addons.map((a, i) => (
-              <div key={i} className="flex gap-2">
-                <input value={a.name} onChange={e => setAddons(addons.map((x, j) => j === i ? { ...x, name: e.target.value } : x))}
-                  className="input text-sm flex-1" placeholder="Nome do adicional" aria-label="Nome do adicional" />
-                <input value={a.price} onChange={e => setAddons(addons.map((x, j) => j === i ? { ...x, price: e.target.value } : x))}
-                  className="input text-sm w-24" placeholder="R$ 0,00" inputMode="decimal" aria-label="Preco do adicional" />
-                <button type="button" onClick={() => setAddons(addons.filter((_, j) => j !== i))}
-                  className="text-gray-500 hover:text-red-400 px-1" aria-label="Remover adicional"><X size={14} /></button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Grupos de opções (Tamanho, Adicionais, Remover ingredientes…) */}
+      <OptionGroupsEditor value={groups} onChange={setGroups} />
 
       <div>
-        <label className="block text-xs font-medium text-gray-400 mb-1.5">Observacoes rapidas (separadas por virgula)</label>
+        <label className="block text-xs font-medium text-gray-400 mb-1.5">Atalhos de observação (separados por vírgula)</label>
         <input value={observations} onChange={e => setObservations(e.target.value)} className="input text-sm"
-          placeholder="Sem cebola, Ponto: ao ponto, Molho a parte" />
+          placeholder="Molho à parte, Mensagem no bolo:" />
       </div>
       <div>
         <label className="block text-xs font-medium text-gray-400 mb-1.5">Descricao</label>
@@ -674,9 +643,11 @@ function ProductForm({ initial, categories, onSave, onCancel }: { initial?: Part
       </div>
       <div className="flex gap-3 pt-2 sticky bottom-0 bg-card pb-1">
         <button onClick={onCancel} className="btn-secondary flex-1 justify-center">Cancelar</button>
-        <button onClick={handle} disabled={saving} className="btn-primary flex-1 justify-center">
+        <button onClick={handle} disabled={saving} className="btn-primary flex-1 justify-center whitespace-nowrap">
           {saving ? <Loader2 size={14} className="animate-spin" /> : null}
-          {initial?.id ? 'Salvar alteracoes' : 'Criar produto'}
+          {initial?.id
+            ? <><span className="sm:hidden">Salvar</span><span className="max-sm:hidden">Salvar alteracoes</span></>
+            : 'Criar produto'}
         </button>
       </div>
     </div>
@@ -696,7 +667,7 @@ function ProductCard({ product, catName, onEdit, onToggle, onDelete }: { product
 
   return (
     <div className={cn('card flex flex-col transition-all duration-200 hover:border-brand-500/30', !product.available && 'opacity-60')}>
-      <div className="w-full h-32 rounded-t-2xl overflow-hidden flex-shrink-0">
+      <div className="w-full h-32 rounded-t-2xl overflow-hidden shrink-0">
         <ProductMediaCard
           imageUrl={product.imageUrl}
           videoUrl={product.videoUrl}
@@ -707,22 +678,22 @@ function ProductCard({ product, catName, onEdit, onToggle, onDelete }: { product
       <div className="p-3 flex flex-col flex-1">
         <div className="flex items-start justify-between gap-1 mb-1">
           <p className="font-semibold text-white text-sm leading-tight line-clamp-2">{product.name}</p>
-          <span className="text-brand-400 font-bold text-sm flex-shrink-0 ml-1 whitespace-nowrap">
+          <span className="text-brand-400 font-bold text-sm shrink-0 ml-1 whitespace-nowrap">
             {formatCurrency(Number(product.price))}<span className="text-xs font-medium text-brand-300/80">{priceSuffix(product.saleUnit)}</span>
           </span>
         </div>
         <p className="text-xs text-gray-500 mb-0.5">{catName}</p>
         {product.description && <p className="text-xs text-gray-500 line-clamp-2 mt-0.5 flex-1">{product.description}</p>}
-        {(product.madeToOrder || !!product.addons?.length) && (
+        {(product.madeToOrder || !!product.optionGroups?.length) && (
           <div className="flex flex-wrap gap-1 mt-1.5">
             {product.madeToOrder && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300">
+              <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-violet-500/15 text-violet-300">
                 Sob encomenda{product.minLeadTimeHours ? ` · ${product.minLeadTimeHours}h` : ''}
               </span>
             )}
-            {!!product.addons?.length && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300">
-                {product.addons.length} {product.addons.length === 1 ? 'adicional' : 'adicionais'}
+            {!!product.optionGroups?.length && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-brand-500/15 text-brand-300" title={product.optionGroups.map(g => g.name).join(', ')}>
+                {product.optionGroups.length} {product.optionGroups.length === 1 ? 'grupo de opções' : 'grupos de opções'}
               </span>
             )}
           </div>
@@ -884,7 +855,7 @@ export default function MenuPage() {
             const count = cat._count?.products ?? products.filter(p => p.categoryId === cat.id).length
             return (
               <div key={cat.id} className="card p-4 flex items-center gap-4 hover:border-brand-500/20 transition-colors">
-                <div className="w-10 h-10 rounded-xl bg-brand-600/20 flex items-center justify-center text-brand-400 font-bold text-base flex-shrink-0">{cat.sortOrder}</div>
+                <div className="w-10 h-10 rounded-xl bg-brand-600/20 flex items-center justify-center text-brand-400 font-bold text-base shrink-0">{cat.sortOrder}</div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="font-semibold text-white">{cat.name}</p>
@@ -892,7 +863,7 @@ export default function MenuPage() {
                   </div>
                   {cat.description && <p className="text-xs text-gray-500 mt-0.5">{cat.description}</p>}
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-2 shrink-0">
                   <span className={cn('text-xs px-2.5 py-1 rounded-lg font-medium', count > 0 ? 'bg-brand-600/15 text-brand-400' : 'bg-surface-50 text-gray-500')}>
                     {count} produto{count !== 1 ? 's' : ''}
                   </span>
@@ -925,7 +896,7 @@ export default function MenuPage() {
       </Modal>
 
       {/* Modal Produto */}
-      <Modal open={prodModal} onClose={() => { setProdModal(false); setEditProd(undefined) }} title={editProd ? `Editar: ${editProd.name}` : 'Novo Produto'} size="lg">
+      <Modal open={prodModal} onClose={() => { setProdModal(false); setEditProd(undefined) }} title={editProd ? `Editar: ${editProd.name}` : 'Novo Produto'} size="xl">
         <ProductForm initial={editProd} categories={categories} onSave={saveProduct} onCancel={() => { setProdModal(false); setEditProd(undefined) }} />
       </Modal>
     </div>

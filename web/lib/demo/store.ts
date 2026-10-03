@@ -8,6 +8,7 @@ import { getDemoDataset } from './data'
 import { getDemoBusinessType } from './businessType'
 import { getDemoSettings } from './settings'
 import { deadlineOf, estimateReadyAt, timingState } from '@/lib/orderTiming'
+import { normalizeOptionGroups, readOptionGroups, resolveSelection } from '@/lib/productOptions'
 import type { BusinessType, Category, Product, Table, Order, OrderStatus, TableStatus } from '@/types'
 
 // ─── Estado mutável em módulo (singleton por aba do browser) ──────────────────
@@ -35,8 +36,17 @@ function load(type: BusinessType) {
 }
 
 /** Mesmo formato do erro da API (axios), para as telas tratarem igual nos dois modos. */
-function conflict(message: string) {
-  return Object.assign(new Error(message), { response: { status: 409, data: { message, statusCode: 409 } } })
+function httpError(status: number, message: string) {
+  return Object.assign(new Error(message), { response: { status, data: { message, statusCode: status } } })
+}
+const conflict   = (message: string) => httpError(409, message)
+const badRequest = (message: string) => httpError(400, message)
+
+/** Mesma validação da API para os grupos de opções do cadastro (400 se inválidos). */
+function validGroups(input: unknown) {
+  const r = normalizeOptionGroups(input)
+  if ('error' in r) throw badRequest(r.error)
+  return r.groups
 }
 load(businessType)
 
@@ -63,7 +73,7 @@ export const demoStore = {
   getProducts:       () => [...products],
   createProduct:     (dto: Omit<Product, 'id' | 'category'>) => {
     const cat = categories.find(c => c.id === dto.categoryId)
-    const p   = { ...dto, id: uid(), category: cat ? { id: cat.id, name: cat.name } : undefined }
+    const p   = { ...dto, optionGroups: validGroups(dto.optionGroups), id: uid(), category: cat ? { id: cat.id, name: cat.name } : undefined }
     products.push(p)
     if (cat) {
       categories = categories.map(c =>
@@ -73,7 +83,8 @@ export const demoStore = {
     return p
   },
   updateProduct:     (id: string, dto: Partial<Product>) => {
-    products = products.map(p => p.id === id ? { ...p, ...dto } : p)
+    const patch = dto.optionGroups !== undefined ? { ...dto, optionGroups: validGroups(dto.optionGroups) } : dto
+    products = products.map(p => p.id === id ? { ...p, ...patch } : p)
     return products.find(p => p.id === id)!
   },
   deleteProduct:     (id: string) => { products = products.filter(p => p.id !== id) },
@@ -112,7 +123,7 @@ export const demoStore = {
     discount?: number
     isPreorder?: boolean
     scheduledFor?: string
-    items: { productId: string; quantity: number; notes?: string; addonIds?: string[] }[]
+    items: { productId: string; quantity: number; notes?: string; optionIds?: string[] }[]
   }, userId = 'demo-admin', userName = 'Demo') => {
     // Mesma regra da API: com o recebimento pausado, nenhum pedido é criado (409)
     const settings = getDemoSettings(businessType)
@@ -120,23 +131,28 @@ export const demoStore = {
       throw conflict('O recebimento de pedidos está pausado. Um administrador ou gerente pode reativar em Configurações.')
     }
     const nowMs = Date.now()
-    const itemsData = dto.items.map(item => {
+    if (!dto.items?.length) throw badRequest('Pedido deve ter pelo menos um item')
+    const itemsData = dto.items.map((item, idx) => {
       const prod = products.find(p => p.id === item.productId)
-      // Mesmo cálculo da API: preço dos adicionais vem do cadastro
-      const addons = (item.addonIds ?? [])
-        .map(id => prod?.addons?.find(a => a.id === id))
-        .filter((a): a is NonNullable<typeof a> => !!a)
-      const unitPrice  = Number(prod?.price ?? 0) + addons.reduce((s, a) => s + a.price, 0)
+      if (!prod) throw badRequest('Um ou mais produtos não encontrados')
+      if (!prod.available) throw badRequest(`"${prod.name}" está indisponível no momento`)
+      // Mesma regra da API: opções validadas contra o cadastro; preço e nomes vêm dele
+      const selection = resolveSelection(prod.name, readOptionGroups(prod.optionGroups), item.optionIds)
+      if ('error' in selection) throw badRequest(selection.error)
+      const unitPrice = Math.round((Number(prod.price) + selection.extra) * 100) / 100
+      const itemId = uid()
       return {
-        id: uid(),
+        id: itemId,
         productId:   item.productId,
-        productName: prod?.name ?? 'Produto',
+        productName: prod.name,
         quantity:    item.quantity,
-        unit:        prod?.saleUnit ?? 'UNIT',
+        unit:        prod.saleUnit ?? 'UNIT',
         unitPrice,
         totalPrice:  Math.round(unitPrice * item.quantity * 100) / 100,
-        notes:       item.notes,
-        addons:      addons.length ? addons : undefined,
+        notes:       item.notes?.trim() || undefined,
+        options:     selection.chosen.length
+          ? selection.chosen.map((c, k) => ({ ...c, id: `${itemId}-o${k}-${idx}` }))
+          : undefined,
       }
     })
     const subtotal = itemsData.reduce((s, i) => s + i.totalPrice, 0)

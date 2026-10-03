@@ -71,6 +71,21 @@ export function getBusinessProfile(type?: BusinessType | null): BusinessProfile 
   return BUSINESS_PROFILES[type ?? 'RESTAURANT'] ?? BUSINESS_PROFILES.RESTAURANT
 }
 
+// ─── Estabelecimentos de demonstração do modo local/API ───────────────────────
+// Cada um é um restaurante próprio no banco (api/prisma/demo-tenants.ts), com
+// cardápio e pedidos isolados pelo restaurantId do JWT. Trocar entre eles exige
+// um novo login no slug escolhido.
+export const DEMO_ESTABLISHMENTS: ReadonlyArray<{ slug: string; type: BusinessType }> = [
+  { slug: 'restaurante-demo', type: 'RESTAURANT' },
+  { slug: 'lanchonete-demo', type: 'SNACK_BAR' },
+  { slug: 'confeitaria-demo', type: 'CONFECTIONERY' },
+  { slug: 'japones-demo', type: 'JAPANESE' },
+]
+
+export function demoEstablishment(slug?: string | null) {
+  return DEMO_ESTABLISHMENTS.find(e => e.slug === slug)
+}
+
 // ─── Nome padrão x nome personalizado ─────────────────────────────────────────
 // A mesma regra existe na API (api/src/restaurants/settings.constants.ts).
 

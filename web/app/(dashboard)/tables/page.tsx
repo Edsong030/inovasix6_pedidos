@@ -63,7 +63,7 @@ function TableCard({
       <div className="flex items-start justify-between mb-3">
         <div>
           <div className="flex items-center gap-2">
-            <span className={cn('w-2.5 h-2.5 rounded-full flex-shrink-0', STATUS_DOT[table.status])} />
+            <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', STATUS_DOT[table.status])} />
             <span className="text-xl font-bold text-white">Mesa {table.number}</span>
           </div>
           <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-500">

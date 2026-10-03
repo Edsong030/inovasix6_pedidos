@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { TablesService } from './tables.service';
 import { CreateTableDto, UpdateTableStatusDto } from './dto/create-table.dto';
@@ -7,15 +7,17 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { TABLE_READ_ROLES, TABLE_STATUS_ROLES } from '../common/permissions';
 
 @ApiTags('Tables')
-@ApiBearerAuth()
+@ApiCookieAuth('inx_session')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('tables')
 export class TablesController {
   constructor(private svc: TablesService) {}
 
   @Get()
+  @Roles(...TABLE_READ_ROLES)
   findAll(@CurrentUser() u: any) {
     return this.svc.findAll(u.restaurantId);
   }
@@ -27,6 +29,7 @@ export class TablesController {
   }
 
   @Patch(':id/status')
+  @Roles(...TABLE_STATUS_ROLES)
   updateStatus(
     @Param('id') id: string,
     @Body() dto: UpdateTableStatusDto,

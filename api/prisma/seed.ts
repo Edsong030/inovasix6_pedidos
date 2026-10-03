@@ -1,364 +1,374 @@
-import { PrismaClient, UserRole, OrderChannel, OrderStatus, PaymentMethod, TableStatus } from '@prisma/client';
-import { Decimal } from '@prisma/client/runtime/library';
+/**
+ * Seed do modo local/API: cria quatro estabelecimentos de demonstração independentes
+ * (restaurante-demo, lanchonete-demo, confeitaria-demo, japones-demo). Cada um é um
+ * restaurante próprio, com usuários, cardápio, mesas, pedidos e histórico — isolados
+ * pelo restaurantId como qualquer cliente real.
+ *
+ *   npm run db:seed        cria o que faltar; nunca apaga nada. Nos quatro estabelecimentos de
+ *                          demonstração, restaura o tipo (se foi trocado) e avisa quando os
+ *                          pedidos de exemplo estão em aberto há horas
+ *   npm run db:demo-reset -- --confirm
+ *                          APAGA e recria SÓ esses quatro estabelecimentos (cardápio, mesas e
+ *                          pedidos) com horários relativos a agora. Sem --confirm apenas lista o
+ *                          que seria apagado.
+ *
+ *   Os dois comandos recusam NODE_ENV=production: criam usuários com senhas de demonstração.
+ */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { PrismaClient, Prisma, UserRole, OrderStatus, TableStatus } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { normalizeOptionGroups, readOptionGroups, resolveSelection, type ProductOptionGroup } from '../src/products/product-options';
+import { DEMO_TENANT_TYPES, isDefaultBusinessName } from '../src/restaurants/settings.constants';
+import { DEMO_TENANTS, type OrderDef, type TenantDef } from './demo-tenants';
 
 const prisma = new PrismaClient();
+const RESET = process.argv.includes('--reset');
+const CONFIRM = process.argv.includes('--confirm');
+const MIN = 60_000;
+const HISTORY_DAYS = 14;
+const STALE_HOURS = 3;
 
-async function main() {
-  console.log('🌱 Iniciando seed...');
+const USERS: Array<[email: string, name: string, password: string, role: UserRole]> = [
+  ['admin@inovasix.com', 'Administrador', 'admin123', UserRole.ADMIN],
+  ['gerente@inovasix.com', 'Carlos Gerente', 'gerente123', UserRole.MANAGER],
+  ['atendente@inovasix.com', 'Ana Atendente', 'atendente123', UserRole.ATTENDANT],
+  ['cozinha@inovasix.com', 'João Cozinha', 'cozinha123', UserRole.KITCHEN],
+  ['entregador@inovasix.com', 'Pedro Entregador', 'entregador123', UserRole.DELIVERY],
+];
+const CUSTOMERS = ['Ana Souza', 'Bruno Lima', 'Carla Mendes', 'Diego Rocha', 'Elaine Castro', 'Felipe Nunes', 'Gabriela Reis', 'Henrique Dias'];
 
-  // ─── Restaurante ─────────────────────────────────────────────────────────
-  const restaurant = await prisma.restaurant.upsert({
-    where: { slug: 'restaurante-demo' },
-    update: {},
-    create: {
-      name: 'Restaurante Demo',
-      slug: 'restaurante-demo',
-      phone: '(11) 99999-9999',
-      address: 'Rua das Flores, 123 - São Paulo/SP',
-    },
+type Catalog = Map<string, { id: string; name: string; price: number; saleUnit: Prisma.ProductCreateInput['saleUnit']; groups: ProductOptionGroup[] }>;
+
+/** Gerador determinístico (mesmo histórico a cada execução). */
+function seeded(seed: string) {
+  let a = 2166136261;
+  for (let i = 0; i < seed.length; i++) a = Math.imul(a ^ seed.charCodeAt(i), 16777619);
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Remove cardápio, mesas e pedidos de um estabelecimento de demonstração (e só dele). */
+async function wipeTenant(restaurant: { id: string; slug: string }) {
+  if (!DEMO_TENANT_TYPES[restaurant.slug]) throw new Error(`Recusado: "${restaurant.slug}" não é estabelecimento de demonstração`);
+  const restaurantId = restaurant.id;
+  await prisma.order.deleteMany({ where: { restaurantId } }); // itens e opções em cascata
+  await prisma.product.deleteMany({ where: { restaurantId } });
+  await prisma.category.deleteMany({ where: { restaurantId } });
+  await prisma.table.deleteMany({ where: { restaurantId } });
+}
+
+/** Itens com preço e escolhas calculados pelas mesmas regras da API. */
+function buildItems(def: TenantDef, catalog: Catalog, items: OrderDef['items']) {
+  return items.map(([key, quantity, opts]) => {
+    const p = catalog.get(key);
+    if (!p) throw new Error(`${def.slug}: produto "${key}" não existe no cardápio`);
+    // O cardápio pode ter sido editado depois do seed: usa só opções que existem e
+    // completa grupos obrigatórios com a primeira opção disponível
+    const known = new Set(p.groups.flatMap((g) => g.options.filter((o) => o.available).map((o) => o.id)));
+    const optionIds = (opts?.optionIds ?? []).filter((id) => known.has(id));
+    for (const g of p.groups.filter((g) => g.required && !g.options.some((o) => optionIds.includes(o.id)))) {
+      const first = g.options.find((o) => o.available);
+      if (first) optionIds.push(first.id);
+    }
+    const selection = resolveSelection(p.name, p.groups, optionIds);
+    if ('error' in selection) throw new Error(`${def.slug}: ${selection.error}`);
+    const unitPrice = Math.round((p.price + selection.extra) * 100) / 100;
+    return {
+      productId: p.id, productName: p.name, quantity, unit: p.saleUnit, unitPrice,
+      totalPrice: Math.round(unitPrice * quantity * 100) / 100,
+      notes: opts?.notes,
+      options: selection.chosen.length ? { create: selection.chosen.map((c, i) => ({ ...c, sortOrder: i })) } : undefined,
+    };
   });
-  console.log(`✅ Restaurante: ${restaurant.name}`);
+}
 
-  // ─── Usuários ─────────────────────────────────────────────────────────────
-  const hashAdmin = await bcrypt.hash('admin123', 10);
-  const hashManager = await bcrypt.hash('gerente123', 10);
-  const hashAttendant = await bcrypt.hash('atendente123', 10);
-  const hashKitchen = await bcrypt.hash('cozinha123', 10);
-  const hashDelivery = await bcrypt.hash('entregador123', 10);
+async function seedTenant(def: TenantDef, hashes: Map<string, string>) {
+  // ─── Estabelecimento ──────────────────────────────────────────────────────
+  const base = { name: def.name, businessType: def.businessType, avgPrepMinutes: def.avgPrepMinutes, phone: def.phone, address: def.address };
+  if (DEMO_TENANT_TYPES[def.slug] !== def.businessType) throw new Error(`${def.slug}: tipo diferente de DEMO_TENANT_TYPES`);
+  let restaurant = await prisma.restaurant.findUnique({ where: { slug: def.slug } });
+  if (!restaurant) {
+    restaurant = await prisma.restaurant.create({ data: { slug: def.slug, ...base } });
+  } else if (RESET) {
+    await wipeTenant(restaurant);
+    restaurant = await prisma.restaurant.update({ where: { id: restaurant.id }, data: { ...base, acceptingOrders: true } });
+  } else if (restaurant.businessType !== def.businessType) {
+    // Versões antigas deixavam trocar o tipo do estabelecimento de demonstração
+    // (ex.: "Confeitaria Demo" com pedidos de restaurante). O tipo volta ao do slug;
+    // nome personalizado é mantido.
+    restaurant = await prisma.restaurant.update({
+      where: { id: restaurant.id },
+      data: { businessType: def.businessType, ...(isDefaultBusinessName(restaurant.name) && { name: def.name }) },
+    });
+    console.log(`🔧 ${def.slug}: tipo restaurado para ${def.businessType}`);
+  }
+  const restaurantId = restaurant.id;
 
-  const admin = await prisma.user.upsert({
-    where: { email_restaurantId: { email: 'admin@inovasix.com', restaurantId: restaurant.id } },
-    update: {},
-    create: {
-      restaurantId: restaurant.id,
-      name: 'Administrador',
-      email: 'admin@inovasix.com',
-      password: hashAdmin,
-      role: UserRole.ADMIN,
-    },
-  });
-
-  const manager = await prisma.user.upsert({
-    where: { email_restaurantId: { email: 'gerente@inovasix.com', restaurantId: restaurant.id } },
-    update: {},
-    create: {
-      restaurantId: restaurant.id,
-      name: 'Carlos Gerente',
-      email: 'gerente@inovasix.com',
-      password: hashManager,
-      role: UserRole.MANAGER,
-    },
-  });
-
-  const attendant = await prisma.user.upsert({
-    where: { email_restaurantId: { email: 'atendente@inovasix.com', restaurantId: restaurant.id } },
-    update: {},
-    create: {
-      restaurantId: restaurant.id,
-      name: 'Ana Atendente',
-      email: 'atendente@inovasix.com',
-      password: hashAttendant,
-      role: UserRole.ATTENDANT,
-    },
-  });
-
-  await prisma.user.upsert({
-    where: { email_restaurantId: { email: 'cozinha@inovasix.com', restaurantId: restaurant.id } },
-    update: {},
-    create: {
-      restaurantId: restaurant.id,
-      name: 'João Cozinha',
-      email: 'cozinha@inovasix.com',
-      password: hashKitchen,
-      role: UserRole.KITCHEN,
-    },
-  });
-
-  await prisma.user.upsert({
-    where: { email_restaurantId: { email: 'entregador@inovasix.com', restaurantId: restaurant.id } },
-    update: {},
-    create: {
-      restaurantId: restaurant.id,
-      name: 'Pedro Entregador',
-      email: 'entregador@inovasix.com',
-      password: hashDelivery,
-      role: UserRole.DELIVERY,
-    },
-  });
-  console.log('✅ Usuários criados');
+  // ─── Usuários (mesmas credenciais de demonstração em cada estabelecimento) ─
+  const users = new Map<UserRole, string>();
+  for (const [email, name, password, role] of USERS) {
+    const u = await prisma.user.upsert({
+      where: { email_restaurantId: { email, restaurantId } },
+      update: RESET ? { name, role, active: true, password: hashes.get(password)! } : {},
+      create: { restaurantId, name, email, role, password: hashes.get(password)! },
+    });
+    users.set(role, u.id);
+  }
 
   // ─── Mesas ────────────────────────────────────────────────────────────────
-  const tableNumbers = ['01', '02', '03', '04', '05', '06', '07', '08', 'Balcão', 'Varanda'];
-  const tables: { id: string; number: string }[] = [];
-  for (const number of tableNumbers) {
+  const tables = new Map<string, string>();
+  for (const [number, capacity] of def.tables) {
     const t = await prisma.table.upsert({
-      where: { restaurantId_number: { restaurantId: restaurant.id, number } },
+      where: { restaurantId_number: { restaurantId, number } },
       update: {},
-      create: {
-        restaurantId: restaurant.id,
-        number,
-        capacity: number === 'Balcão' ? 8 : number === 'Varanda' ? 6 : 4,
-      },
+      create: { restaurantId, number, capacity },
     });
-    tables.push(t);
+    tables.set(number, t.id);
   }
-  console.log('✅ Mesas criadas');
 
-  // ─── Categorias ───────────────────────────────────────────────────────────
-  const catNames = [
-    { name: 'Entradas', description: 'Petiscos e entradas', sortOrder: 1 },
-    { name: 'Pratos Principais', description: 'Pratos quentes e frios', sortOrder: 2 },
-    { name: 'Pizzas', description: 'Pizzas artesanais', sortOrder: 3 },
-    { name: 'Lanches', description: 'Hambúrgueres e sanduíches', sortOrder: 4 },
-    { name: 'Bebidas', description: 'Refrigerantes, sucos e cervejas', sortOrder: 5 },
-    { name: 'Sobremesas', description: 'Doces e sobremesas', sortOrder: 6 },
-  ];
-
-  const categories: { id: string; name: string }[] = [];
-  for (const cat of catNames) {
-    // Verificar se já existe
-    let c = await prisma.category.findFirst({
-      where: { restaurantId: restaurant.id, name: cat.name },
-    });
-    if (!c) {
-      c = await prisma.category.create({
-        data: { restaurantId: restaurant.id, ...cat },
+  // ─── Categorias e produtos (encontra pelo nome; só cria o que falta) ───────
+  const categoryIds = new Map<string, string>();
+  for (const [i, [key, name, description]] of def.categories.entries()) {
+    const found = await prisma.category.findFirst({ where: { restaurantId, name } });
+    const c = found ?? await prisma.category.create({ data: { restaurantId, name, description, sortOrder: i + 1 } });
+    categoryIds.set(key, c.id);
+  }
+  const catalog: Catalog = new Map();
+  for (const p of def.products) {
+    const groups = normalizeOptionGroups(p.optionGroups ?? []);
+    if ('error' in groups) throw new Error(`${def.slug} / ${p.name}: ${groups.error}`);
+    let row = await prisma.product.findFirst({ where: { restaurantId, name: p.name } });
+    if (!row) {
+      row = await prisma.product.create({
+        data: {
+          restaurantId, categoryId: categoryIds.get(p.cat)!, name: p.name, description: p.description, price: p.price,
+          imageUrl: p.image, available: p.available ?? true, saleUnit: p.saleUnit, madeToOrder: p.madeToOrder ?? false,
+          minLeadTimeHours: p.minLeadTimeHours, observationOptions: p.observationOptions ?? [],
+          optionGroups: groups.groups.length ? (groups.groups as unknown as Prisma.InputJsonValue) : undefined,
+        },
+      });
+    } else if (!row.imageUrl || (row.optionGroups === null && groups.groups.length)) {
+      // Completa o que falta em produtos de versões antigas; nada é sobrescrito
+      row = await prisma.product.update({
+        where: { id: row.id },
+        data: {
+          ...(!row.imageUrl && { imageUrl: p.image }),
+          ...(row.optionGroups === null && groups.groups.length && { optionGroups: groups.groups as unknown as Prisma.InputJsonValue }),
+        },
       });
     }
-    categories.push(c);
+    catalog.set(p.key, { id: row.id, name: row.name, price: Number(row.price), saleUnit: row.saleUnit, groups: readOptionGroups(row.optionGroups) });
   }
-  console.log('✅ Categorias criadas');
 
-  // ─── Produtos ─────────────────────────────────────────────────────────────
-  const getCatId = (name: string) => categories.find((c) => c.name === name)!.id;
-
-  // Imagens: Unsplash com IDs fixos (estáveis, licença livre para uso demonstrativo)
-  const productsList = [
-    // Entradas
-    { categoryId: getCatId('Entradas'), name: 'Bruschetta de Tomate',     description: 'Pão italiano com tomate, manjericão e azeite', price: 24.90, imageUrl: 'https://images.unsplash.com/photo-1572695157366-5e585ab2b69f?w=400&q=80' },
-    { categoryId: getCatId('Entradas'), name: 'Bolinho de Bacalhau (8 un)',description: 'Bolinhos fritos com maionese de ervas',         price: 32.00, imageUrl: 'https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=400&q=80' },
-    { categoryId: getCatId('Entradas'), name: 'Tábua de Frios',           description: 'Queijos, frios e antepastos',                   price: 48.00, imageUrl: 'https://images.unsplash.com/photo-1506368249639-73a05d6f6488?w=400&q=80' },
-    // Pratos Principais
-    { categoryId: getCatId('Pratos Principais'), name: 'Filé ao Molho Madeira', description: 'Filé mignon grelhado com batata e arroz', price: 58.90, imageUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=400&q=80' },
-    { categoryId: getCatId('Pratos Principais'), name: 'Frango Grelhado',       description: 'Peito de frango grelhado com legumes',    price: 42.90, imageUrl: 'https://images.unsplash.com/photo-1532550907401-a500c9a57435?w=400&q=80' },
-    { categoryId: getCatId('Pratos Principais'), name: 'Moqueca de Camarão',    description: 'Camarão, leite de coco, dendê e arroz',   price: 74.90, imageUrl: 'https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=400&q=80' },
-    { categoryId: getCatId('Pratos Principais'), name: 'Risoto de Funghi',      description: 'Arroz arbóreo com cogumelos secos',        price: 52.90, imageUrl: 'https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=400&q=80' },
-    // Pizzas
-    { categoryId: getCatId('Pizzas'), name: 'Margherita',          description: 'Molho de tomate, mussarela e manjericão', price: 45.90, imageUrl: 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=400&q=80' },
-    { categoryId: getCatId('Pizzas'), name: 'Calabresa',           description: 'Molho, calabresa fatiada e cebola',       price: 42.90, imageUrl: 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=400&q=80' },
-    { categoryId: getCatId('Pizzas'), name: 'Frango com Catupiry', description: 'Frango desfiado, catupiry e orégano',     price: 48.90, imageUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400&q=80' },
-    { categoryId: getCatId('Pizzas'), name: 'Quatro Queijos',      description: 'Mussarela, provolone, gorgonzola e parmesão', price: 52.90, imageUrl: 'https://images.unsplash.com/photo-1571997478779-2adcbbe9ab2f?w=400&q=80' },
-    // Lanches
-    { categoryId: getCatId('Lanches'), name: 'Classic Burger', description: 'Hambúrguer 180g, queijo, alface e tomate',     price: 32.90, imageUrl: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&q=80' },
-    { categoryId: getCatId('Lanches'), name: 'Smash Bacon',    description: 'Duplo smash, bacon crocante e cheddar',        price: 39.90, imageUrl: 'https://images.unsplash.com/photo-1553979459-d2229ba7433b?w=400&q=80' },
-    { categoryId: getCatId('Lanches'), name: 'Veggie Burger',  description: 'Hambúrguer de grão-de-bico, rúcula e pesto',   price: 34.90, imageUrl: 'https://images.unsplash.com/photo-1520072959219-c595dc870360?w=400&q=80' },
-    // Bebidas
-    { categoryId: getCatId('Bebidas'), name: 'Coca-Cola Lata',        description: '350ml',                 price:  6.00, imageUrl: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=400&q=80' },
-    { categoryId: getCatId('Bebidas'), name: 'Suco de Laranja Natural',description: '400ml natural',        price: 12.00, imageUrl: 'https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=400&q=80' },
-    { categoryId: getCatId('Bebidas'), name: 'Água Mineral',          description: '500ml com ou sem gás', price:  5.00, imageUrl: 'https://images.unsplash.com/photo-1548839140-29a749e1cf4d?w=400&q=80' },
-    { categoryId: getCatId('Bebidas'), name: 'Cerveja Artesanal IPA', description: 'Long neck 355ml',      price: 18.00, imageUrl: 'https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=400&q=80' },
-    { categoryId: getCatId('Bebidas'), name: 'Cerveja Pilsen',        description: 'Lata 350ml',           price:  8.00, imageUrl: 'https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400&q=80' },
-    // Sobremesas
-    { categoryId: getCatId('Sobremesas'), name: 'Petit Gateau',          description: 'Bolo de chocolate quente com sorvete',   price: 22.90, imageUrl: 'https://images.unsplash.com/photo-1611329532992-0b7af95a3b14?w=400&q=80' },
-    { categoryId: getCatId('Sobremesas'), name: 'Pudim de Leite',         description: 'Pudim caseiro com calda de caramelo',    price: 14.90, imageUrl: 'https://images.unsplash.com/photo-1515467837915-15c4777cd6f0?w=400&q=80' },
-    { categoryId: getCatId('Sobremesas'), name: 'Cheesecake de Morango',  description: 'Base de biscoito, recheio cremoso e calda', price: 19.90, imageUrl: 'https://images.unsplash.com/photo-1533134242443-d4fd215305ad?w=400&q=80' },
-  ];
-
-  const products: { id: string; name: string; price: Decimal }[] = [];
-  for (const prod of productsList) {
-    let p = await prisma.product.findFirst({
-      where: { restaurantId: restaurant.id, name: prod.name },
+  // ─── Pedidos (só em estabelecimento sem pedidos; o reset esvazia antes) ────
+  if (await prisma.order.count({ where: { restaurantId } })) {
+    console.log(`ℹ️  ${def.name}: já tem pedidos, mantidos`);
+    // Os pedidos de exemplo "envelhecem": um banco semeado ontem abre com pedidos em
+    // aberto há horas. O seed normal nunca apaga nada; só avisa como renovar.
+    const stale = await prisma.order.count({
+      where: {
+        restaurantId, isPreorder: false,
+        status: { in: [OrderStatus.RECEIVED, OrderStatus.PREPARING, OrderStatus.READY, OrderStatus.OUT_FOR_DELIVERY] },
+        createdAt: { lt: new Date(Date.now() - STALE_HOURS * 3_600_000) },
+      },
     });
-    if (!p) {
-      p = await prisma.product.create({
-        data: { restaurantId: restaurant.id, ...prod },
-      });
-    } else if (!p.imageUrl && prod.imageUrl) {
-      // Atualiza imagem se o produto já existia sem imagem
-      p = await prisma.product.update({
-        where: { id: p.id },
-        data: { imageUrl: prod.imageUrl },
-      });
+    if (stale) {
+      console.log(`⚠️  ${def.name}: ${stale} pedido(s) em aberto há mais de ${STALE_HOURS} h. Para renovar os horários: npm run db:demo-reset (pede confirmação)`);
     }
-    products.push(p);
-  }
-  console.log('✅ Produtos criados/atualizados');
-
-  // ─── Pedidos de exemplo ───────────────────────────────────────────────────
-  const existingOrders = await prisma.order.count({ where: { restaurantId: restaurant.id } });
-  if (existingOrders === 0) {
-    const getProduct = (name: string) => products.find((p) => p.name === name)!;
-    // Horários relativos a agora, sempre em ordem: recebido ≤ preparo ≤ pronto ≤ entregue
-    const minutesAgo = (m: number) => new Date(Date.now() - m * 60000);
-
-    const ordersData = [
-      // Pedido 1 - Salão mesa 01 - Em preparo
-      {
-        restaurantId: restaurant.id,
-        userId: attendant.id,
-        tableId: tables[0].id,
-        orderNumber: 1,
-        channel: OrderChannel.DINE_IN,
-        status: OrderStatus.PREPARING,
-        customerName: 'Mesa 01',
-        paymentMethod: PaymentMethod.CARD,
-        subtotal: 110.80,
-        discount: 0,
-        total: 110.80,
-        // Passou da previsão (36 min > 30 min): exemplo de pedido atrasado
-        createdAt: minutesAgo(36),
-        prepStartedAt: minutesAgo(30),
-        items: {
-          create: [
-            { productId: getProduct('Filé ao Molho Madeira').id, productName: 'Filé ao Molho Madeira', quantity: 1, unitPrice: 58.90, totalPrice: 58.90 },
-            { productId: getProduct('Coca-Cola Lata').id, productName: 'Coca-Cola Lata', quantity: 2, unitPrice: 6.00, totalPrice: 12.00 },
-            { productId: getProduct('Bruschetta de Tomate').id, productName: 'Bruschetta de Tomate', quantity: 1, unitPrice: 24.90, totalPrice: 24.90 },
-            { productId: getProduct('Pudim de Leite').id, productName: 'Pudim de Leite', quantity: 1, unitPrice: 14.90, totalPrice: 14.90 },
-          ],
-        },
-      },
-      // Pedido 2 - Delivery - Recebido
-      {
-        restaurantId: restaurant.id,
-        userId: attendant.id,
-        orderNumber: 2,
-        channel: OrderChannel.DELIVERY,
-        status: OrderStatus.RECEIVED,
-        customerName: 'Maria Silva',
-        customerPhone: '(11) 98765-4321',
-        deliveryAddress: 'Av. Paulista, 1000 - Apto 52',
-        paymentMethod: PaymentMethod.PIX,
-        subtotal: 87.80,
-        discount: 5.00,
-        total: 82.80,
-        createdAt: minutesAgo(4),
-        items: {
-          create: [
-            { productId: getProduct('Margherita').id, productName: 'Margherita', quantity: 1, unitPrice: 45.90, totalPrice: 45.90 },
-            { productId: getProduct('Coca-Cola Lata').id, productName: 'Coca-Cola Lata', quantity: 2, unitPrice: 6.00, totalPrice: 12.00 },
-            { productId: getProduct('Petit Gateau').id, productName: 'Petit Gateau', quantity: 1, unitPrice: 22.90, totalPrice: 22.90 },
-            { productId: getProduct('Suco de Laranja Natural').id, productName: 'Suco de Laranja Natural', quantity: 1, unitPrice: 12.00, totalPrice: 12.00 },
-          ],
-        },
-      },
-      // Pedido 3 - Balcão - Pronto
-      {
-        restaurantId: restaurant.id,
-        userId: manager.id,
-        orderNumber: 3,
-        channel: OrderChannel.COUNTER,
-        status: OrderStatus.READY,
-        customerName: 'João Paulo',
-        paymentMethod: PaymentMethod.CASH,
-        subtotal: 72.80,
-        discount: 0,
-        total: 72.80,
-        createdAt: minutesAgo(28),
-        prepStartedAt: minutesAgo(25),
-        readyAt: minutesAgo(3),
-        items: {
-          create: [
-            { productId: getProduct('Smash Bacon').id, productName: 'Smash Bacon', quantity: 1, unitPrice: 39.90, totalPrice: 39.90 },
-            { productId: getProduct('Cerveja Artesanal IPA').id, productName: 'Cerveja Artesanal IPA', quantity: 2, unitPrice: 18.00, totalPrice: 36.00 },
-          ],
-        },
-      },
-      // Pedido 4 - Retirada - Entregue (histórico)
-      {
-        restaurantId: restaurant.id,
-        userId: attendant.id,
-        orderNumber: 4,
-        channel: OrderChannel.TAKEOUT,
-        status: OrderStatus.DELIVERED,
-        customerName: 'Fernanda Costa',
-        customerPhone: '(11) 91234-5678',
-        paymentMethod: PaymentMethod.PIX,
-        subtotal: 94.80,
-        discount: 0,
-        total: 94.80,
-        createdAt: minutesAgo(65),
-        prepStartedAt: minutesAgo(60),
-        readyAt: minutesAgo(40),
-        deliveredAt: minutesAgo(35),
-        items: {
-          create: [
-            { productId: getProduct('Moqueca de Camarão').id, productName: 'Moqueca de Camarão', quantity: 1, unitPrice: 74.90, totalPrice: 74.90 },
-            { productId: getProduct('Água Mineral').id, productName: 'Água Mineral', quantity: 2, unitPrice: 5.00, totalPrice: 10.00 },
-            { productId: getProduct('Cheesecake de Morango').id, productName: 'Cheesecake de Morango', quantity: 0, unitPrice: 19.90, totalPrice: 0 },
-          ],
-        },
-      },
-      // Pedido 5 - Delivery - Saiu para entrega
-      {
-        restaurantId: restaurant.id,
-        userId: manager.id,
-        orderNumber: 5,
-        channel: OrderChannel.DELIVERY,
-        status: OrderStatus.OUT_FOR_DELIVERY,
-        customerName: 'Roberto Alves',
-        customerPhone: '(11) 97654-3210',
-        deliveryAddress: 'Rua Augusta, 500 - Apto 12',
-        paymentMethod: PaymentMethod.CARD,
-        subtotal: 130.80,
-        discount: 10.00,
-        total: 120.80,
-        createdAt: minutesAgo(50),
-        prepStartedAt: minutesAgo(45),
-        readyAt: minutesAgo(20),
-        items: {
-          create: [
-            { productId: getProduct('Quatro Queijos').id, productName: 'Quatro Queijos', quantity: 1, unitPrice: 52.90, totalPrice: 52.90 },
-            { productId: getProduct('Calabresa').id, productName: 'Calabresa', quantity: 1, unitPrice: 42.90, totalPrice: 42.90 },
-            { productId: getProduct('Cerveja Pilsen').id, productName: 'Cerveja Pilsen', quantity: 4, unitPrice: 8.00, totalPrice: 32.00 },
-          ],
-        },
-      },
-    ];
-
-    for (const orderData of ordersData) {
-      // Previsão de pronto: criação + tempo médio do restaurante (mesma regra da API)
-      const estimatedReadyAt = new Date(orderData.createdAt.getTime() + restaurant.avgPrepMinutes * 60000);
-      await prisma.order.create({ data: { ...orderData, estimatedReadyAt } as any });
-    }
-
-    // Atualiza status das mesas com pedidos ativos
-    await prisma.table.update({
-      where: { id: tables[0].id },
-      data: { status: TableStatus.OCCUPIED },
-    });
-
-    console.log('✅ Pedidos de exemplo criados');
-  } else {
-    console.log('ℹ️  Pedidos já existem, pulando...');
-
     // Bancos criados por versões antigas deste seed têm pedidos "prontos antes de
     // recebidos" (o createdAt ficava com a hora do seed). Recua só o createdAt desses
-    // pedidos da loja demo para antes da primeira etapa. Idempotente.
-    const demoOrders = await prisma.order.findMany({
-      where: { restaurantId: restaurant.id },
+    // pedidos para antes da primeira etapa. Idempotente.
+    const existing = await prisma.order.findMany({
+      where: { restaurantId },
       select: { id: true, createdAt: true, prepStartedAt: true, readyAt: true, deliveredAt: true },
     });
-    let repaired = 0;
-    for (const o of demoOrders) {
+    for (const o of existing) {
       const steps = [o.prepStartedAt, o.readyAt, o.deliveredAt].filter((d): d is Date => !!d);
       const first = steps.length ? Math.min(...steps.map((d) => d.getTime())) : null;
       if (first !== null && first < o.createdAt.getTime()) {
-        await prisma.order.update({ where: { id: o.id }, data: { createdAt: new Date(first - 3 * 60000) } });
-        repaired++;
+        await prisma.order.update({ where: { id: o.id }, data: { createdAt: new Date(first - 3 * MIN) } });
       }
     }
-    if (repaired) console.log(`🔧 ${repaired} pedido(s) de exemplo com horários fora de ordem corrigido(s)`);
+    return;
+  }
+  try {
+    await createOrders(def, restaurantId, users.get(UserRole.ATTENDANT)!, tables, catalog);
+  } catch (e) {
+    // Sem pedidos pela metade: a próxima execução recomeça do zero
+    await prisma.order.deleteMany({ where: { restaurantId } });
+    throw e;
+  }
+}
+
+async function createOrders(def: TenantDef, restaurantId: string, attendant: string, tables: Map<string, string>, catalog: Catalog) {
+  const now = Date.now();
+  let number = 0;
+
+  // Histórico dos dias anteriores (relatórios): entregues, dentro do tempo, em dois picos do dia
+  const dishes = def.products.filter((p) => p.cat !== def.history.drinkCategory && !p.madeToOrder && p.available !== false);
+  const drinks = def.products.filter((p) => p.cat === def.history.drinkCategory);
+  for (let back = HISTORY_DAYS; back >= 1; back--) {
+    const day = new Date(now);
+    day.setHours(0, 0, 0, 0);
+    day.setDate(day.getDate() - back);
+    const rnd = seeded(`${def.slug}-${day.toISOString().slice(0, 10)}`);
+    const [lo, hi] = def.history.perDay;
+    const count = lo + Math.floor(rnd() * (hi - lo + 1));
+    for (let i = 0; i < count; i++) {
+      const picks: OrderDef['items'] = [];
+      const n = 1 + Math.floor(rnd() * 2);
+      for (let k = 0; k < n; k++) {
+        const p = dishes[Math.floor(rnd() * dishes.length)];
+        // Obrigatórios recebem a primeira opção; o resto do item vai sem adicionais
+        const optionIds = catalog.get(p.key)!.groups.filter((g) => g.required).map((g) => g.options[0].id);
+        picks.push([p.key, p.saleUnit === 'KG' ? 1 : 1 + Math.floor(rnd() * 2), { optionIds }]);
+      }
+      if (drinks.length && rnd() < 0.7) picks.push([drinks[Math.floor(rnd() * drinks.length)].key, 1 + Math.floor(rnd() * 2)]);
+      const items = buildItems(def, catalog, picks);
+      const subtotal = Math.round(items.reduce((s, it) => s + it.totalPrice, 0) * 100) / 100;
+      const created = new Date(day.getTime() + (def.history.peaks[rnd() < 0.5 ? 0 : 1] + rnd() * 2.5) * 3_600_000);
+      const prep = def.avgPrepMinutes * (0.6 + rnd() * 0.5);
+      const cancelled = rnd() < 0.04;
+      const channel = def.history.channels[Math.floor(rnd() * def.history.channels.length)];
+      await prisma.order.create({
+        data: {
+          restaurantId, userId: attendant, orderNumber: ++number, channel,
+          status: cancelled ? OrderStatus.CANCELLED : OrderStatus.DELIVERED,
+          paymentMethod: (['PIX', 'CARD', 'CASH'] as const)[Math.floor(rnd() * 3)],
+          customerName: CUSTOMERS[Math.floor(rnd() * CUSTOMERS.length)],
+          subtotal, total: subtotal,
+          createdAt: created,
+          prepStartedAt: cancelled ? null : new Date(created.getTime() + 2 * MIN),
+          readyAt: cancelled ? null : new Date(created.getTime() + prep * MIN),
+          deliveredAt: cancelled ? null : new Date(created.getTime() + (prep + 8) * MIN),
+          cancelledAt: cancelled ? new Date(created.getTime() + 5 * MIN) : null,
+          estimatedReadyAt: new Date(created.getTime() + def.avgPrepMinutes * MIN),
+          items: { create: items },
+        },
+      });
+    }
   }
 
-  console.log('\n✨ Seed concluído com sucesso!');
-  console.log('\n📋 Credenciais de acesso:');
-  console.log('   Slug do restaurante: restaurante-demo');
-  console.log('   Admin:       admin@inovasix.com       / admin123');
-  console.log('   Gerente:     gerente@inovasix.com     / gerente123');
-  console.log('   Atendente:   atendente@inovasix.com   / atendente123');
-  console.log('   Cozinha:     cozinha@inovasix.com     / cozinha123');
-  console.log('   Entregador:  entregador@inovasix.com  / entregador123');
+  // Pedidos de hoje: horários relativos a agora (poucos exemplos intencionais de prazo)
+  const occupied = new Set<string>();
+  for (const o of def.orders) {
+    const items = buildItems(def, catalog, o.items);
+    const subtotal = Math.round(items.reduce((s, it) => s + it.totalPrice, 0) * 100) / 100;
+    const discount = o.discount ?? 0;
+    const created = now - o.minutesAgo * MIN;
+    // Cada etapa depois da anterior e nunca no futuro
+    const started = o.status !== OrderStatus.RECEIVED;
+    const ready = ([OrderStatus.READY, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED] as OrderStatus[]).includes(o.status);
+    const startedAt = created + Math.min(2 * MIN, o.minutesAgo * MIN / 4);
+    const readyAt = Math.min(now - MIN, created + Math.min(def.avgPrepMinutes, o.minutesAgo - 3) * MIN);
+    const deliveredAt = Math.min(now - MIN / 2, readyAt + 5 * MIN);
+    const scheduledFor = o.scheduledInHours !== undefined ? new Date(now + o.scheduledInHours * 3_600_000) : null;
+    const tableId = o.table ? tables.get(o.table) : undefined;
+    if (tableId && !ready) occupied.add(tableId);
+    await prisma.order.create({
+      data: {
+        restaurantId, userId: attendant, tableId, orderNumber: ++number, channel: o.channel, status: o.status,
+        paymentMethod: o.pay, customerName: o.customer, customerPhone: o.phone, deliveryAddress: o.address, notes: o.notes,
+        externalRef: o.externalRef, subtotal, discount, total: Math.round((subtotal - discount) * 100) / 100,
+        createdAt: new Date(created),
+        prepStartedAt: started ? new Date(startedAt) : null,
+        readyAt: ready ? new Date(Math.max(readyAt, startedAt)) : null,
+        deliveredAt: o.status === OrderStatus.DELIVERED ? new Date(Math.max(deliveredAt, readyAt, startedAt)) : null,
+        isPreorder: !!scheduledFor, scheduledFor,
+        // Mesma regra da API: criação + tempo médio (ou o horário combinado da encomenda)
+        estimatedReadyAt: scheduledFor ?? new Date(created + def.avgPrepMinutes * MIN),
+        items: { create: items },
+      },
+    });
+  }
+  for (const tableId of occupied) await prisma.table.update({ where: { id: tableId }, data: { status: TableStatus.OCCUPIED } });
+  // O próximo pedido criado pela API continua a numeração (contador atômico)
+  await prisma.restaurant.update({ where: { id: restaurantId }, data: { orderSeq: number } });
+  console.log(`✅ ${def.name}: ${number} pedidos (${def.orders.length} de hoje)`);
+}
+
+/** NODE_ENV do terminal ou, se ausente, do api/.env (o mesmo arquivo que dá o DATABASE_URL). */
+function nodeEnv(): string | undefined {
+  if (process.env.NODE_ENV) return process.env.NODE_ENV;
+  try {
+    const line = readFileSync(join(__dirname, '..', '.env'), 'utf8').split(/\r?\n/).find((l) => /^\s*NODE_ENV\s*=/.test(l));
+    return line?.split('=')[1].trim().replace(/^["']|["']$/g, '');
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * O reset apaga dados. Antes de qualquer escrita: recusa produção, lista o que será
+ * apagado em cada estabelecimento de demonstração e só segue com --confirm.
+ * Retorna false quando deve abortar.
+ */
+async function confirmReset(): Promise<boolean> {
+  if (nodeEnv() === 'production') {
+    console.error('⛔ db:demo-reset recusado: NODE_ENV=production. Este comando só roda em ambiente local/desenvolvimento.');
+    return false;
+  }
+  const slugs = DEMO_TENANTS.map((t) => t.slug);
+  if (slugs.some((s) => !DEMO_TENANT_TYPES[s])) throw new Error('DEMO_TENANTS contém slug fora de DEMO_TENANT_TYPES');
+  const found = await prisma.restaurant.findMany({
+    where: { slug: { in: slugs } },
+    select: {
+      id: true, slug: true, name: true,
+      _count: { select: { orders: true, products: true, categories: true, tables: true } },
+      products: { select: { name: true } },
+    },
+  });
+
+  console.log('\n⚠️  db:demo-reset APAGA pedidos, produtos, categorias e mesas destes estabelecimentos de demonstração');
+  console.log('   e os recria com os dados de exemplo. Usuários são mantidos. Nenhum outro restaurante é tocado.\n');
+  for (const def of DEMO_TENANTS) {
+    const r = found.find((x) => x.slug === def.slug);
+    if (!r) {
+      console.log(`   • ${def.slug.padEnd(18)} não existe ainda (será criado)`);
+      continue;
+    }
+    const c = r._count;
+    console.log(`   • ${def.slug.padEnd(18)} "${r.name}": ${c.orders} pedidos, ${c.products} produtos, ${c.categories} categorias, ${c.tables} mesas`);
+    const seeded = new Set(def.products.map((p) => p.name));
+    const manual = r.products.map((p) => p.name).filter((n) => !seeded.has(n));
+    if (manual.length) console.log(`     ↳ produtos criados manualmente que serão perdidos: ${manual.join(', ')}`);
+  }
+
+  if (!CONFIRM) {
+    console.log('\n✋ Nada foi alterado. Para confirmar, rode:\n\n   npm run db:demo-reset -- --confirm\n');
+    return false;
+  }
+  console.log('\n✔ Confirmado (--confirm).');
+  return true;
+}
+
+async function main() {
+  // Seed cria usuários com senhas de demonstração conhecidas: nunca em produção
+  if (nodeEnv() === 'production') {
+    console.error('⛔ Seed recusado: NODE_ENV=production. Dados e senhas de demonstração só em ambiente local/desenvolvimento.');
+    process.exitCode = 1;
+    return;
+  }
+  if (RESET && !(await confirmReset())) {
+    process.exitCode = 1;
+    return;
+  }
+  console.log(RESET ? '🔄 Recriando estabelecimentos de demonstração...' : '🌱 Iniciando seed...');
+  const hashes = new Map<string, string>();
+  for (const [, , password] of USERS) hashes.set(password, await bcrypt.hash(password, 10));
+
+  for (const def of DEMO_TENANTS) await seedTenant(def, hashes);
+
+  console.log('\n✨ Seed concluído!');
+  console.log('\n📋 Estabelecimentos (slug no login):');
+  for (const def of DEMO_TENANTS) console.log(`   ${def.slug.padEnd(18)} ${def.name}`);
+  console.log('\n   Mesmos usuários em todos:');
+  for (const [email, , password, role] of USERS) console.log(`   ${role.padEnd(10)} ${email.padEnd(26)} / ${password}`);
 }
 
 main()

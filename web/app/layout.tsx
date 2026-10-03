@@ -1,11 +1,13 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { Toaster } from 'react-hot-toast'
+import { asset } from '@/lib/asset'
 
 export const metadata: Metadata = {
   title: 'Inovasix6 Pedidos',
   description: 'Plataforma de gestão de pedidos para restaurantes',
-  icons: { icon: '/inovasix6-symbol.svg' },
+  // Com o basePath do GitHub Pages na demo (/inovasix6_pedidos/...)
+  icons: { icon: asset('/inovasix6-symbol.svg') },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

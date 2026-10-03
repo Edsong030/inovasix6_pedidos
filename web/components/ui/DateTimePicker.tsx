@@ -77,7 +77,7 @@ export function DateTimePicker({ value, onChange, min, placeholder = 'Selecionar
                 value={date}
                 min={min?.split('T')[0]}
                 onChange={e => setDate(e.target.value)}
-                className="input text-sm [color-scheme:dark]"
+                className="input text-sm scheme-dark"
               />
             </div>
             <div>

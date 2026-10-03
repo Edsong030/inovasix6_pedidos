@@ -13,6 +13,7 @@ import {
 } from 'recharts'
 import { dataApi } from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
+import { canSeeFinance } from '@/lib/permissions'
 import { useBusiness } from '@/hooks/useBusiness'
 import { Header } from '@/components/layout/Header'
 import { StatusBadge } from '@/components/ui/Badge'
@@ -125,7 +126,7 @@ function KpiCard({ label, value, icon, iconClass, t, hint }: {
 }) {
   return (
     <div className={cn(PANEL, 'p-5 flex items-start gap-4 min-w-0')}>
-      <div className={cn('w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0', iconClass)}>{icon}</div>
+      <div className={cn('w-11 h-11 rounded-xl flex items-center justify-center shrink-0', iconClass)}>{icon}</div>
       <div className="min-w-0 flex-1">
         <p className="text-sm text-gray-400">{label}</p>
         <p className="text-2xl font-bold text-white tracking-tight leading-tight mt-0.5">{value}</p>
@@ -149,14 +150,14 @@ function KpiCard({ label, value, icon, iconClass, t, hint }: {
 
 type HourPoint = { hour: number; label: string; count: number; revenue: number }
 
-function HourTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: HourPoint }> }) {
+function HourTooltip({ active, payload, showRevenue = true }: { active?: boolean; payload?: Array<{ payload: HourPoint }>; showRevenue?: boolean }) {
   if (!active || !payload?.length) return null
   const p = payload[0].payload
   return (
     <div style={TOOLTIP_STYLE} className="px-3 py-2">
       <p className="text-xs text-gray-400">{String(p.hour).padStart(2, '0')}h – {String(p.hour + 1).padStart(2, '0')}h</p>
       <p className="text-sm font-semibold text-white mt-0.5">{fmtInt(p.count)} {p.count === 1 ? 'pedido' : 'pedidos'}</p>
-      <p className="text-xs text-gray-300">{formatCurrency(p.revenue)}</p>
+      {showRevenue && <p className="text-xs text-gray-300">{formatCurrency(p.revenue)}</p>}
     </div>
   )
 }
@@ -210,6 +211,8 @@ export default function DashboardPage() {
   if (loading) return <PageLoader />
 
   const can = (roles: UserRole[]) => !!user && roles.includes(user.role)
+  // Faturamento só para ADMIN/MANAGER (a API também restringe relatórios e o resumo)
+  const finance = canSeeFinance(user?.role)
 
   // ─── KPIs ──────────────────────────────────────────────────────────────────
   const nowDate   = new Date(now)
@@ -284,7 +287,7 @@ export default function DashboardPage() {
               disabled={paused}
               title={paused ? PAUSED_TITLE : undefined}
               aria-describedby={paused ? 'orders-paused' : undefined}
-              className="flex items-center justify-center gap-2.5 rounded-2xl bg-brand-600 hover:bg-brand-500 px-4 py-3.5 text-sm font-semibold text-white shadow-glow transition-colors disabled:bg-white/[0.06] disabled:text-gray-500 disabled:shadow-none disabled:cursor-not-allowed"
+              className="flex items-center justify-center gap-2.5 rounded-2xl bg-brand-600 hover:bg-brand-500 px-4 py-3.5 text-sm font-semibold text-white shadow-glow transition-colors disabled:bg-white/6 disabled:text-gray-500 disabled:shadow-none disabled:cursor-not-allowed"
             >
               {paused ? <CirclePause size={18} /> : <Plus size={18} />} {paused ? 'Pedidos pausados' : 'Novo pedido'}
             </button>
@@ -303,20 +306,20 @@ export default function DashboardPage() {
 
         {late.length > 0 ? (
           <div className="flex items-center gap-3 rounded-2xl border border-amber-400/30 bg-amber-500/[0.07] px-4 py-3">
-            <TriangleAlert size={20} className="text-amber-300 flex-shrink-0" />
+            <TriangleAlert size={20} className="text-amber-300 shrink-0" />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-amber-200">
                 {late.length} {late.length === 1 ? 'pedido passou' : 'pedidos passaram'} da previsão de pronto
               </p>
               <p className="text-xs text-amber-200/60">Recebidos ou em preparo depois do horário previsto</p>
             </div>
-            <Link href="/kitchen" className="flex-shrink-0 inline-flex items-center gap-1 rounded-lg border border-amber-400/40 px-3 py-1.5 text-xs font-semibold text-amber-200 hover:bg-amber-400/10 transition-colors">
+            <Link href="/kitchen" className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-amber-400/40 px-3 py-1.5 text-xs font-semibold text-amber-200 hover:bg-amber-400/10 transition-colors">
               Ver agora <ChevronRight size={14} />
             </Link>
           </div>
         ) : (
           <div className={cn(PANEL, 'flex items-center gap-3 px-4 py-3')}>
-            <Sparkles size={18} className="text-emerald-300 flex-shrink-0" />
+            <Sparkles size={18} className="text-emerald-300 shrink-0" />
             <p className="text-sm text-gray-300">
               Nenhum pedido atrasado.{dueSoon.length > 0 && <span className="text-amber-200"> {dueSoon.length} {dueSoon.length === 1 ? 'vence' : 'vencem'} em até 5 min.</span>}
             </p>
@@ -325,7 +328,7 @@ export default function DashboardPage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
+      <div className={cn('grid grid-cols-1 md:grid-cols-2 gap-4 mb-5', finance ? 'xl:grid-cols-4' : 'xl:grid-cols-3')}>
         <KpiCard
           label="Pedidos hoje"
           value={fmtInt(cur.orders)}
@@ -342,14 +345,14 @@ export default function DashboardPage() {
           t={null}
           hint={late.length ? `${late.length} ${late.length === 1 ? 'atrasado' : 'atrasados'} (passou da previsão)` : `${business.inKitchen} agora`}
         />
-        <KpiCard
+        {finance && <KpiCard
           label="Faturamento"
           value={formatCurrency(cur.revenue)}
           icon={<DollarSign size={20} className="text-emerald-300" />}
           iconClass="bg-emerald-500/15"
           t={trend(cur.revenue, prev?.revenue ?? null)}
           hint="pedidos prontos e entregues"
-        />
+        />}
         <KpiCard
           label="Tempo médio"
           value={formatPrepMinutes(cur.avgMinutes)}
@@ -364,8 +367,8 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-5">
         <div className={cn(PANEL, 'xl:col-span-2 p-5 min-w-0')}>
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <h3 className="text-sm font-semibold text-white">Pedidos e faturamento por hora</h3>
-            <div className="flex gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1" role="tablist" aria-label="Métrica do gráfico">
+            <h3 className="text-sm font-semibold text-white">{finance ? 'Pedidos e faturamento por hora' : 'Pedidos por hora'}</h3>
+            {finance && <div className="flex gap-1 rounded-xl border border-white/10 bg-white/3 p-1" role="tablist" aria-label="Métrica do gráfico">
               {([['orders', 'Pedidos', ChartColumn], ['revenue', 'Faturamento', ChartLine]] as const).map(([mode, label, Icon]) => (
                 <button
                   key={mode}
@@ -380,7 +383,7 @@ export default function DashboardPage() {
                   <Icon size={14} /> {label}
                 </button>
               ))}
-            </div>
+            </div>}
           </div>
 
           <div className="relative h-[200px] md:h-[260px]">
@@ -390,7 +393,7 @@ export default function DashboardPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" vertical={false} />
                   <XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={8} />
                   <YAxis hide={chartEmpty} width={36} allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  {!chartEmpty && <Tooltip content={<HourTooltip />} cursor={{ fill: 'rgba(96,136,255,0.08)' }} />}
+                  {!chartEmpty && <Tooltip content={<HourTooltip showRevenue={finance} />} cursor={{ fill: 'rgba(96,136,255,0.08)' }} />}
                   {!chartEmpty && <Bar dataKey="count" fill="#3d5eff" radius={[6, 6, 0, 0]} maxBarSize={28} />}
                 </BarChart>
               ) : (
@@ -404,7 +407,7 @@ export default function DashboardPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" vertical={false} />
                   <XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={8} />
                   <YAxis hide={chartEmpty} width={72} tickFormatter={fmtAxisBRL} tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  {!chartEmpty && <Tooltip content={<HourTooltip />} cursor={{ stroke: 'rgba(96,136,255,0.4)' }} />}
+                  {!chartEmpty && <Tooltip content={<HourTooltip showRevenue={finance} />} cursor={{ stroke: 'rgba(96,136,255,0.4)' }} />}
                   {!chartEmpty && (
                     <Area type="monotone" dataKey="revenue" stroke="#6088ff" strokeWidth={2.5} fill="url(#dashRevFill)"
                       activeDot={{ r: 5, fill: '#6088ff', stroke: '#0b1020', strokeWidth: 2 }} />
@@ -435,11 +438,11 @@ export default function DashboardPage() {
               <li key={status}>
                 <Link
                   href={`/orders?status=${status}`}
-                  className="group flex items-center gap-3 py-2.5 -mx-2 px-2 rounded-lg hover:bg-white/[0.04] transition-colors"
+                  className="group flex items-center gap-3 py-2.5 -mx-2 px-2 rounded-lg hover:bg-white/4 transition-colors"
                   title={`Ver pedidos: ${label.toLowerCase()}`}
                 >
-                  <span className={cn('w-2 h-2 rounded-full flex-shrink-0', dot)} />
-                  <Icon size={16} className={cn('flex-shrink-0', text)} />
+                  <span className={cn('w-2 h-2 rounded-full shrink-0', dot)} />
+                  <Icon size={16} className={cn('shrink-0', text)} />
                   <span className="flex-1 text-sm text-gray-200">{label}</span>
                   <span className={cn('text-base font-bold tabular-nums', text)}>{fmtInt(statusCounts[status] || 0)}</span>
                   <ChevronRight size={15} className="text-gray-600 group-hover:text-gray-300 transition-colors" />
@@ -482,7 +485,7 @@ export default function DashboardPage() {
                     const active  = !['DELIVERED', 'CANCELLED'].includes(o.status)
                     const timing  = timingById.get(o.id)
                     return (
-                      <tr key={o.id} className={cn('transition-colors', isLate ? 'bg-amber-500/[0.06] hover:bg-amber-500/10' : 'hover:bg-white/[0.02]')}>
+                      <tr key={o.id} className={cn('transition-colors', isLate ? 'bg-amber-500/6 hover:bg-amber-500/10' : 'hover:bg-white/2')}>
                         <td className={cn('py-3 pl-5 pr-2 font-bold whitespace-nowrap', isLate ? 'text-amber-300 border-l-2 border-amber-400' : 'text-white')}>
                           #{o.orderNumber}
                         </td>
@@ -535,7 +538,7 @@ export default function DashboardPage() {
                       aria-label={`Ver pedido #${o.orderNumber}`}
                       className={cn(
                         'flex items-start gap-3 px-5 py-3 transition-colors',
-                        isLate ? 'bg-amber-500/[0.06] border-l-2 border-amber-400' : 'active:bg-white/[0.03]',
+                        isLate ? 'bg-amber-500/6 border-l-2 border-amber-400' : 'active:bg-white/3',
                       )}
                     >
                       <div className="min-w-0 flex-1">
@@ -544,7 +547,7 @@ export default function DashboardPage() {
                             <span className={cn('font-bold', isLate ? 'text-amber-300' : 'text-white')}>#{o.orderNumber}</span>
                             <span className="text-white font-medium"> · {o.customerName || (o.table ? `Mesa ${o.table.number}` : 'Sem nome')}</span>
                           </p>
-                          <p className="flex-shrink-0 text-sm font-semibold text-white tabular-nums">{formatCurrency(Number(o.total))}</p>
+                          <p className="shrink-0 text-sm font-semibold text-white tabular-nums">{formatCurrency(Number(o.total))}</p>
                         </div>
                         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                           <OriginBadge channel={o.channel} />
@@ -564,7 +567,7 @@ export default function DashboardPage() {
                           )}
                         </p>
                       </div>
-                      <ChevronRight size={16} className="mt-0.5 flex-shrink-0 text-gray-600" />
+                      <ChevronRight size={16} className="mt-0.5 shrink-0 text-gray-600" />
                     </Link>
                   </li>
                 )
@@ -587,8 +590,8 @@ export default function DashboardPage() {
               <OriginBadge channel={critical.order.channel} />
               <StatusBadge status={critical.order.status} />
             </div>
-            <div className="mt-4 flex items-center gap-3 rounded-xl bg-white/[0.04] px-4 py-3">
-              <Clock size={20} className="text-amber-300 flex-shrink-0" />
+            <div className="mt-4 flex items-center gap-3 rounded-xl bg-white/4 px-4 py-3">
+              <Clock size={20} className="text-amber-300 shrink-0" />
               <div>
                 <p className="text-xs text-gray-400">Previsto para {formatDeadline(critical.timing.deadline, now)}</p>
                 <p className="text-lg font-bold text-red-300">{timingText(critical.timing)}</p>
