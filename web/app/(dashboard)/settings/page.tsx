@@ -24,7 +24,7 @@ import {
 import type { AccentColor, BusinessSettings, BusinessType, OpeningHour, UserRole } from '@/types'
 
 const PANEL = 'card panel-tech'
-const INPUT = 'input text-sm bg-[#0c1330] [color-scheme:dark]'
+const INPUT = 'input text-sm bg-[#0c1330] scheme-dark'
 const ALLOWED_ROLES: UserRole[] = ['ADMIN', 'MANAGER']
 
 function apiMessage(err: unknown): string | undefined {
@@ -40,7 +40,7 @@ function Section({ icon: Icon, title, description, action, className, children }
     <section className={cn(PANEL, 'p-5 min-w-0', className)}>
       <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div className="flex items-start gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-brand-500/15 flex items-center justify-center flex-shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-brand-500/15 flex items-center justify-center shrink-0">
             <Icon size={18} className="text-brand-300" />
           </div>
           <div className="min-w-0">
@@ -87,12 +87,12 @@ function Switch({ id, checked, onChange, label }: { id?: string; checked: boolea
       aria-label={label}
       onClick={() => onChange(!checked)}
       className={cn(
-        'relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full border transition-colors',
-        'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
+        'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors',
+        'focus:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
         checked ? 'bg-brand-600 border-brand-500' : 'bg-white/10 border-white/15',
       )}
     >
-      <span className={cn('inline-block h-4 w-4 rounded-full bg-white shadow transition-transform', checked ? 'translate-x-6' : 'translate-x-1')} />
+      <span className={cn('inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform', checked ? 'translate-x-6' : 'translate-x-1')} />
     </button>
   )
 }
@@ -142,7 +142,7 @@ function LogoEditor({ value, error, onChange }: { value: string; error?: string;
 
   return (
     <div className="flex flex-col sm:flex-row gap-4">
-      <div className="relative w-28 h-28 flex-shrink-0 rounded-2xl border border-white/10 bg-[#0c1330] flex items-center justify-center overflow-hidden max-sm:mx-auto">
+      <div className="relative w-28 h-28 shrink-0 rounded-2xl border border-white/10 bg-[#0c1330] flex items-center justify-center overflow-hidden max-sm:mx-auto">
         {value && !broken ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={asset(value)} alt="Pré-visualização do logo" className="max-w-full max-h-full object-contain p-2" onError={() => setBroken(true)} />
@@ -216,10 +216,10 @@ function AccentPicker({ value, onChange }: { value: AccentColor; onChange: (c: A
               onClick={() => onChange(c)}
               className={cn(
                 'flex items-center gap-2.5 rounded-xl border px-3 py-2 text-left text-sm transition-colors min-w-0',
-                active ? 'border-white/40 bg-white/[0.06] text-white' : 'border-white/10 text-gray-400 hover:text-white hover:border-white/20',
+                active ? 'border-white/40 bg-white/6 text-white' : 'border-white/10 text-gray-400 hover:text-white hover:border-white/20',
               )}
             >
-              <span className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: ACCENT_PRESETS[c].swatch }}>
+              <span className="w-5 h-5 rounded-full shrink-0 flex items-center justify-center" style={{ background: ACCENT_PRESETS[c].swatch }}>
                 {active && <Check size={12} className="text-white" />}
               </span>
               <span className="truncate">{ACCENT_PRESETS[c].label}</span>
@@ -261,11 +261,11 @@ function HoursEditor({ hours, errors, onChange }: { hours: OpeningHour[]; errors
                 <div className="flex items-center gap-2 max-sm:w-full">
                   <label className="sr-only" htmlFor={`open-${day}`}>Abertura de {WEEKDAYS[day]}</label>
                   <input id={`open-${day}`} type="time" value={h.opensAt} onChange={e => update(day, { opensAt: e.target.value })}
-                    className={cn(INPUT, 'w-full sm:w-[7.5rem]', error && 'border-red-400/60')} />
+                    className={cn(INPUT, 'w-full sm:w-30', error && 'border-red-400/60')} />
                   <span className="text-gray-500 text-sm">às</span>
                   <label className="sr-only" htmlFor={`close-${day}`}>Encerramento de {WEEKDAYS[day]}</label>
                   <input id={`close-${day}`} type="time" value={h.closesAt} onChange={e => update(day, { closesAt: e.target.value })}
-                    className={cn(INPUT, 'w-full sm:w-[7.5rem]', error && 'border-red-400/60')} />
+                    className={cn(INPUT, 'w-full sm:w-30', error && 'border-red-400/60')} />
                 </div>
               ) : (
                 <span className="max-sm:hidden inline-flex rounded-lg border border-white/10 px-2.5 py-1 text-xs text-gray-500">Fechado</span>
@@ -414,7 +414,7 @@ export default function SettingsPage() {
 
       {/* Resumo do que está salvo */}
       <div className={cn(PANEL, 'p-4 sm:p-5 mb-5 flex flex-wrap items-center gap-4')}>
-        <div className="w-14 h-14 rounded-2xl border border-white/10 bg-[#0c1330] flex items-center justify-center overflow-hidden flex-shrink-0">
+        <div className="w-14 h-14 rounded-2xl border border-white/10 bg-[#0c1330] flex items-center justify-center overflow-hidden shrink-0">
           {settings.logoUrl
             // eslint-disable-next-line @next/next/no-img-element
             ? <img src={asset(settings.logoUrl)} alt="" className="max-w-full max-h-full object-contain p-1.5" />
@@ -430,11 +430,11 @@ export default function SettingsPage() {
             {settings.acceptingOrders ? <CircleCheck size={13} /> : <CircleAlert size={13} />}
             {settings.acceptingOrders ? 'Aceitando pedidos' : 'Pedidos pausados'}
           </span>
-          <span className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs text-gray-300">
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/3 px-2.5 py-1 text-xs text-gray-300">
             <Clock size={13} className="text-brand-300" />
             Hoje: {today?.open ? `${today.opensAt}–${today.closesAt}` : 'fechado'}
           </span>
-          <span className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs text-gray-300">
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/3 px-2.5 py-1 text-xs text-gray-300">
             <span className="w-3 h-3 rounded-full" style={{ background: ACCENT_PRESETS[settings.accentColor].swatch }} />
             {ACCENT_PRESETS[settings.accentColor].label}
           </span>
@@ -525,14 +525,14 @@ export default function SettingsPage() {
                   </div>
                 </Field>
 
-                <div className="flex items-start justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.02] p-3.5">
+                <div className="flex items-start justify-between gap-4 rounded-xl border border-white/10 bg-white/2 p-3.5">
                   <div className="min-w-0">
                     <label htmlFor="acceptingOrders" className="text-sm font-medium text-white">Aceitar pedidos</label>
                     <p className="text-xs text-gray-500 mt-0.5">Quando desligado, ninguém consegue registrar novos pedidos (o sistema recusa) até reativar aqui.</p>
                   </div>
                   <Switch id="acceptingOrders" checked={form.acceptingOrders} onChange={v => set('acceptingOrders', v)} label="Aceitar pedidos" />
                 </div>
-                <div className="flex items-start justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.02] p-3.5">
+                <div className="flex items-start justify-between gap-4 rounded-xl border border-white/10 bg-white/2 p-3.5">
                   <div className="min-w-0">
                     <label htmlFor="showUnavailableProducts" className="text-sm font-medium text-white">Exibir produtos indisponíveis</label>
                     <p className="text-xs text-gray-500 mt-0.5">Mostra itens esgotados ao montar um pedido, marcados como indisponíveis.</p>
@@ -648,7 +648,7 @@ export default function SettingsPage() {
         )}
         {dirty && (
           <p className="flex items-start gap-2 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-amber-200">
-            <TriangleAlert size={15} className="mt-0.5 flex-shrink-0" /> As alterações não salvas nesta tela serão descartadas.
+            <TriangleAlert size={15} className="mt-0.5 shrink-0" /> As alterações não salvas nesta tela serão descartadas.
           </p>
         )}
       </ConfirmDialog>

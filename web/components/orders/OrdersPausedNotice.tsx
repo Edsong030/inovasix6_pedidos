@@ -21,8 +21,8 @@ export function OrdersPausedNotice({ className }: { className?: string }) {
   if (!paused) return null
   const canReactivate = user?.role === 'ADMIN' || user?.role === 'MANAGER'
   return (
-    <div role="status" className={cn('flex flex-wrap items-center gap-3 rounded-2xl border border-amber-400/30 bg-amber-500/[0.08] px-4 py-3', className)}>
-      <CirclePause size={20} className="text-amber-300 flex-shrink-0" />
+    <div role="status" className={cn('flex flex-wrap items-center gap-3 rounded-2xl border border-amber-400/30 bg-amber-500/8 px-4 py-3', className)}>
+      <CirclePause size={20} className="text-amber-300 shrink-0" />
       <div className="min-w-0 flex-1 basis-56">
         <p className="text-sm font-semibold text-amber-200">{PAUSED_TITLE}</p>
         <p className="text-xs text-amber-200/70">

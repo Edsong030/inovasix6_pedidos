@@ -24,7 +24,7 @@ function MediaPlaceholder({ name, className }: { name: string; className?: strin
   const colors = ['from-brand-700 to-brand-900','from-purple-700 to-purple-900','from-emerald-700 to-emerald-900','from-amber-700 to-amber-900','from-rose-700 to-rose-900','from-sky-700 to-sky-900']
   const idx = name.charCodeAt(0) % colors.length
   return (
-    <div className={cn(`bg-gradient-to-br ${colors[idx]} flex flex-col items-center justify-center gap-1`, className)}>
+    <div className={cn(`bg-linear-to-br/srgb ${colors[idx]} flex flex-col items-center justify-center gap-1`, className)}>
       <ImageOff size={20} className="text-white/40" />
       <span className="text-white/60 text-xs text-center px-2 line-clamp-2 leading-tight">{name}</span>
     </div>
@@ -268,7 +268,7 @@ function ImagePicker({ value, onChange, suggestedUrl }: { value: string; onChang
         </div>
       ) : IS_DEMO ? (
         <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300 flex items-start gap-2">
-          <span className="text-amber-400 mt-0.5 flex-shrink-0">aviso</span>
+          <span className="text-amber-400 mt-0.5 shrink-0">aviso</span>
           <span>Upload local nao disponivel no modo demo (GitHub Pages). Use uma URL externa.</span>
         </div>
       ) : (
@@ -456,7 +456,7 @@ function VideoPicker({ value, onChange }: { value: string; onChange: (url: strin
       {/* Upload local — demo bloqueado */}
       {mode === 'upload' && IS_DEMO && (
         <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300 flex items-start gap-2">
-          <span className="flex-shrink-0 mt-0.5">&#9888;</span>
+          <span className="shrink-0 mt-0.5">&#9888;</span>
           <span>Upload local nao disponivel no modo demo. Use uma URL externa.</span>
         </div>
       )}
@@ -489,7 +489,7 @@ function VideoPicker({ value, onChange }: { value: string; onChange: (url: strin
         <div className="flex items-start gap-3 p-2 bg-surface-50 rounded-xl border border-card-border">
           <video
             src={asset(value)}
-            className="w-28 h-16 rounded-lg object-cover bg-black flex-shrink-0"
+            className="w-28 h-16 rounded-lg object-cover bg-black shrink-0"
             muted preload="metadata"
             onError={() => setVidError(true)}
           />
@@ -667,7 +667,7 @@ function ProductCard({ product, catName, onEdit, onToggle, onDelete }: { product
 
   return (
     <div className={cn('card flex flex-col transition-all duration-200 hover:border-brand-500/30', !product.available && 'opacity-60')}>
-      <div className="w-full h-32 rounded-t-2xl overflow-hidden flex-shrink-0">
+      <div className="w-full h-32 rounded-t-2xl overflow-hidden shrink-0">
         <ProductMediaCard
           imageUrl={product.imageUrl}
           videoUrl={product.videoUrl}
@@ -678,7 +678,7 @@ function ProductCard({ product, catName, onEdit, onToggle, onDelete }: { product
       <div className="p-3 flex flex-col flex-1">
         <div className="flex items-start justify-between gap-1 mb-1">
           <p className="font-semibold text-white text-sm leading-tight line-clamp-2">{product.name}</p>
-          <span className="text-brand-400 font-bold text-sm flex-shrink-0 ml-1 whitespace-nowrap">
+          <span className="text-brand-400 font-bold text-sm shrink-0 ml-1 whitespace-nowrap">
             {formatCurrency(Number(product.price))}<span className="text-xs font-medium text-brand-300/80">{priceSuffix(product.saleUnit)}</span>
           </span>
         </div>
@@ -687,12 +687,12 @@ function ProductCard({ product, catName, onEdit, onToggle, onDelete }: { product
         {(product.madeToOrder || !!product.optionGroups?.length) && (
           <div className="flex flex-wrap gap-1 mt-1.5">
             {product.madeToOrder && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300">
+              <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-violet-500/15 text-violet-300">
                 Sob encomenda{product.minLeadTimeHours ? ` · ${product.minLeadTimeHours}h` : ''}
               </span>
             )}
             {!!product.optionGroups?.length && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300" title={product.optionGroups.map(g => g.name).join(', ')}>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-brand-500/15 text-brand-300" title={product.optionGroups.map(g => g.name).join(', ')}>
                 {product.optionGroups.length} {product.optionGroups.length === 1 ? 'grupo de opções' : 'grupos de opções'}
               </span>
             )}
@@ -855,7 +855,7 @@ export default function MenuPage() {
             const count = cat._count?.products ?? products.filter(p => p.categoryId === cat.id).length
             return (
               <div key={cat.id} className="card p-4 flex items-center gap-4 hover:border-brand-500/20 transition-colors">
-                <div className="w-10 h-10 rounded-xl bg-brand-600/20 flex items-center justify-center text-brand-400 font-bold text-base flex-shrink-0">{cat.sortOrder}</div>
+                <div className="w-10 h-10 rounded-xl bg-brand-600/20 flex items-center justify-center text-brand-400 font-bold text-base shrink-0">{cat.sortOrder}</div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="font-semibold text-white">{cat.name}</p>
@@ -863,7 +863,7 @@ export default function MenuPage() {
                   </div>
                   {cat.description && <p className="text-xs text-gray-500 mt-0.5">{cat.description}</p>}
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-2 shrink-0">
                   <span className={cn('text-xs px-2.5 py-1 rounded-lg font-medium', count > 0 ? 'bg-brand-600/15 text-brand-400' : 'bg-surface-50 text-gray-500')}>
                     {count} produto{count !== 1 ? 's' : ''}
                   </span>

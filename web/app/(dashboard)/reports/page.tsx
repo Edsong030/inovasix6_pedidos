@@ -163,7 +163,7 @@ function KpiCard({ label, value, icon, iconClass, d, previous }: {
     <div className={cn(PANEL, 'p-5 flex flex-col gap-3 min-w-0')}>
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-medium text-gray-400">{label}</p>
-        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0', iconClass)}>{icon}</div>
+        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0', iconClass)}>{icon}</div>
       </div>
       <p className="text-2xl font-bold text-white tracking-tight leading-tight">{value}</p>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -379,7 +379,7 @@ export default function ReportsPage() {
                       'px-3 py-1.5 rounded-lg text-sm font-medium border transition-all whitespace-nowrap',
                       preset === p
                         ? 'bg-brand-600/25 border-brand-500/50 text-white'
-                        : 'bg-white/[0.03] border-white/10 text-gray-400 hover:text-white hover:border-brand-500/30',
+                        : 'bg-white/3 border-white/10 text-gray-400 hover:text-white hover:border-brand-500/30',
                     )}
                   >
                     {label}
@@ -387,13 +387,13 @@ export default function ReportsPage() {
                 ))}
               </div>
 
-              <div className="flex flex-wrap items-end gap-3 xl:ml-auto max-md:grid max-md:grid-cols-2 max-md:w-full max-[359px]:grid-cols-1">
+              <div className="flex flex-wrap items-end gap-3 xl:ml-auto max-md:grid max-md:grid-cols-2 max-md:w-full max-[22.4375rem]:grid-cols-1">
                 <div className="min-w-0">
                   <label htmlFor="rep-start" className="block text-xs font-medium text-gray-400 mb-1">Data inicial</label>
                   <input
                     id="rep-start" type="date" value={startDate} max={endDate || todayStr}
                     onChange={e => { setPreset('custom'); setStartDate(e.target.value) }}
-                    className="input text-sm w-[10.5rem] max-md:w-full bg-[#0c1330] [color-scheme:dark]"
+                    className="input text-sm w-42 max-md:w-full bg-[#0c1330] scheme-dark"
                   />
                 </div>
                 <div className="min-w-0">
@@ -401,7 +401,7 @@ export default function ReportsPage() {
                   <input
                     id="rep-end" type="date" value={endDate} min={startDate} max={todayStr}
                     onChange={e => { setPreset('custom'); setEndDate(e.target.value) }}
-                    className="input text-sm w-[10.5rem] max-md:w-full bg-[#0c1330] [color-scheme:dark]"
+                    className="input text-sm w-42 max-md:w-full bg-[#0c1330] scheme-dark"
                   />
                 </div>
               </div>
@@ -549,7 +549,7 @@ export default function ReportsPage() {
                       <ul className="mt-4 space-y-2.5">
                         {paymentData.map(p => (
                           <li key={p.key} className="flex items-start gap-3">
-                            <span className="mt-1.5 w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: p.color }} />
+                            <span className="mt-1.5 w-2.5 h-2.5 rounded-full shrink-0" style={{ background: p.color }} />
                             <div className="flex-1 min-w-0">
                               <div className="flex flex-wrap items-baseline justify-between gap-x-2">
                                 <span className="text-sm text-white font-medium">{p.name}</span>
@@ -585,7 +585,7 @@ export default function ReportsPage() {
                         </div>
                         <div className="h-2.5 rounded-full bg-white/5 overflow-hidden">
                           <div
-                            className="h-full rounded-full bg-gradient-to-r from-brand-600 to-violet-500 transition-all duration-500"
+                            className="h-full rounded-full bg-linear-to-r/srgb from-brand-600 to-violet-500 transition-all duration-500"
                             style={{ width: `${(c.count / channelMax) * 100}%` }}
                           />
                         </div>
@@ -609,7 +609,7 @@ export default function ReportsPage() {
                         </thead>
                         <tbody className="divide-y divide-white/5">
                           {topProducts.map((p, i) => (
-                            <tr key={p.id} className="hover:bg-white/[0.02] transition-colors">
+                            <tr key={p.id} className="hover:bg-white/2 transition-colors">
                               <td className="py-3 pl-5 pr-2">
                                 <span className={cn(
                                   'inline-flex w-7 h-7 items-center justify-center rounded-lg text-xs font-bold',
@@ -673,7 +673,7 @@ export default function ReportsPage() {
                         </p>
                         <p className="text-xs text-gray-500 mt-0.5">{formatDate(order.createdAt)}</p>
                       </div>
-                      <p className="flex-shrink-0 font-semibold text-white tabular-nums">{formatCurrency(Number(order.total))}</p>
+                      <p className="shrink-0 font-semibold text-white tabular-nums">{formatCurrency(Number(order.total))}</p>
                     </div>
                     <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                       <StatusBadge status={order.status} />
@@ -701,7 +701,7 @@ export default function ReportsPage() {
                     </thead>
                     <tbody className="divide-y divide-white/5">
                       {history.map(order => (
-                        <tr key={order.id} className="hover:bg-white/[0.02] transition-colors">
+                        <tr key={order.id} className="hover:bg-white/2 transition-colors">
                           <td className="py-3 px-4 font-bold text-white whitespace-nowrap">#{order.orderNumber}</td>
                           <td className="py-3 px-4"><StatusBadge status={order.status} /></td>
                           <td className="py-3 px-4"><ChannelBadge channel={order.channel} /></td>

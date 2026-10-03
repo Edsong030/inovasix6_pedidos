@@ -80,7 +80,7 @@ export function OptionGroupsEditor({ value, onChange }: { value: GroupDraft[]; o
           <p className="text-[11px] text-gray-500 mt-0.5">Ex.: Tamanho, Adicionais, Remover ingredientes, Molhos, Sabor.</p>
         </div>
         <button type="button" onClick={() => onChange([...value, newGroup()])}
-          className="flex-shrink-0 text-xs font-medium text-brand-300 hover:text-white flex items-center gap-1 rounded-lg border border-brand-500/30 px-2.5 py-1.5">
+          className="shrink-0 text-xs font-medium text-brand-300 hover:text-white flex items-center gap-1 rounded-lg border border-brand-500/30 px-2.5 py-1.5">
           <Plus size={13} /> Grupo
         </button>
       </div>
@@ -98,7 +98,7 @@ export function OptionGroupsEditor({ value, onChange }: { value: GroupDraft[]; o
             <input value={g.name} onChange={e => setGroup(g.key, { name: e.target.value })} maxLength={80}
               className="input text-sm flex-1 min-w-0" placeholder="Nome do grupo (ex.: Tamanho)" aria-label={`Nome do grupo ${gi + 1}`} />
             <button type="button" onClick={() => onChange(value.filter(x => x.key !== g.key))}
-              className="flex-shrink-0 rounded-lg border border-card-border px-2.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10" aria-label={`Remover grupo ${g.name || gi + 1}`}>
+              className="shrink-0 rounded-lg border border-card-border px-2.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10" aria-label={`Remover grupo ${g.name || gi + 1}`}>
               <Trash2 size={15} />
             </button>
           </div>
@@ -135,20 +135,20 @@ export function OptionGroupsEditor({ value, onChange }: { value: GroupDraft[]; o
               <div key={o.key} className={cn('flex flex-wrap sm:flex-nowrap gap-2 items-center', !o.available && 'opacity-60')}>
                 <input value={o.name} onChange={e => setOption(g.key, o.key, { name: e.target.value })} maxLength={80}
                   className="input text-sm flex-1 min-w-0 basis-full sm:basis-auto" placeholder={`Opção ${oi + 1} (ex.: Bacon)`} aria-label={`Nome da opção ${oi + 1}`} />
-                <div className="relative w-28 flex-shrink-0">
+                <div className="relative w-28 shrink-0">
                   <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] text-gray-500 pointer-events-none">+R$</span>
                   <input value={o.price} onChange={e => setOption(g.key, o.key, { price: e.target.value })} inputMode="decimal"
                     className="input text-sm pl-9" placeholder="0,00" aria-label={`Preço adicional da opção ${o.name || oi + 1}`} />
                 </div>
                 <button type="button" onClick={() => setOption(g.key, o.key, { available: !o.available })}
                   aria-pressed={o.available} title={o.available ? 'Disponível' : 'Indisponível'}
-                  className={cn('flex items-center gap-1 rounded-lg border px-2 py-2 text-xs flex-shrink-0',
+                  className={cn('flex items-center gap-1 rounded-lg border px-2 py-2 text-xs shrink-0',
                     o.available ? 'border-emerald-400/30 text-emerald-300' : 'border-card-border text-gray-500')}>
                   {o.available ? <Eye size={14} /> : <EyeOff size={14} />}
                   <span className="sm:sr-only">{o.available ? 'Disponível' : 'Indisponível'}</span>
                 </button>
                 <button type="button" onClick={() => setGroup(g.key, { options: g.options.filter(x => x.key !== o.key) })}
-                  className="flex-shrink-0 px-1.5 text-gray-500 hover:text-red-400 ml-auto sm:ml-0" aria-label={`Remover opção ${o.name || oi + 1}`}>
+                  className="shrink-0 px-1.5 text-gray-500 hover:text-red-400 ml-auto sm:ml-0" aria-label={`Remover opção ${o.name || oi + 1}`}>
                   <Trash2 size={14} />
                 </button>
               </div>

@@ -50,7 +50,7 @@ export function InovasixLogo(props: InovasixLogoProps) {
   if (props.variant === 'sidebar') {
     return (
       <div
-        className={cn('flex items-center justify-center w-full flex-shrink-0', props.className)}
+        className={cn('flex items-center justify-center w-full shrink-0', props.className)}
         style={{ minHeight: 80, padding: '4px 0' }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -71,7 +71,7 @@ export function InovasixLogo(props: InovasixLogoProps) {
   const h = FULL_SIZES[(props as InovasixLogoFullProps).size ?? 'md']
 
   return (
-    <div className={cn('inline-flex items-center justify-center flex-shrink-0', props.className)}>
+    <div className={cn('inline-flex items-center justify-center shrink-0', props.className)}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={logoSrc}

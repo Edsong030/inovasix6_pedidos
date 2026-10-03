@@ -65,7 +65,7 @@ export function OrderCard({ order, now, onStatusChange, onCancel }: OrderCardPro
             <StatusBadge status={order.status} />
             <ChannelBadge channel={order.channel} />
           </div>
-          <div className="flex items-center gap-1 text-xs text-gray-500 flex-shrink-0">
+          <div className="flex items-center gap-1 text-xs text-gray-500 shrink-0">
             <Clock size={12} />
             <span title="Tempo desde o recebimento">
               {elapsed}min
@@ -127,7 +127,7 @@ export function OrderCard({ order, now, onStatusChange, onCancel }: OrderCardPro
                   <ItemOptions options={item.options} className="mt-0.5" />
                   {item.notes && <p className="text-xs text-amber-400 mt-0.5">⚠ {item.notes}</p>}
                 </div>
-                <span className="text-gray-400 flex-shrink-0">{formatCurrency(Number(item.totalPrice))}</span>
+                <span className="text-gray-400 shrink-0">{formatCurrency(Number(item.totalPrice))}</span>
               </div>
             ))}
           </div>
