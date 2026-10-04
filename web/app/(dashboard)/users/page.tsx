@@ -19,6 +19,7 @@ const ROLE_COLORS: Record<UserRole, string> = {
   ATTENDANT: 'bg-blue-500/15 text-blue-300 border-blue-500/20',
   KITCHEN:   'bg-amber-500/15 text-amber-300 border-amber-500/20',
   DELIVERY:  'bg-teal-500/15 text-teal-300 border-teal-500/20',
+  PLATFORM_ADMIN: 'bg-brand-500/15 text-brand-300 border-brand-500/20',
 }
 
 interface UserFormData {

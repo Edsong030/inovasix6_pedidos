@@ -1,6 +1,7 @@
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
-export type UserRole = 'ADMIN' | 'MANAGER' | 'ATTENDANT' | 'KITCHEN' | 'DELIVERY'
+/** PLATFORM_ADMIN: equipe Inovasix6 (área /platform); não acessa a operação dos estabelecimentos. */
+export type UserRole = 'ADMIN' | 'MANAGER' | 'ATTENDANT' | 'KITCHEN' | 'DELIVERY' | 'PLATFORM_ADMIN'
 
 export type BusinessType = 'RESTAURANT' | 'SNACK_BAR' | 'CONFECTIONERY' | 'JAPANESE'
 
@@ -73,6 +74,7 @@ export const ROLE_LABEL: Record<UserRole, string> = {
   ATTENDANT: 'Atendente',
   KITCHEN:   'Cozinha',
   DELIVERY:  'Entregador',
+  PLATFORM_ADMIN: 'Plataforma Inovasix6',
 }
 
 // ─── Entities ────────────────────────────────────────────────────────────────
@@ -286,4 +288,34 @@ export interface BusinessSettings {
 export interface LoginResponse {
   accessToken: string
   user: AuthUser
+}
+
+// ─── Plataforma (PLATFORM_ADMIN) ─────────────────────────────────────────────
+
+/** Linha da listagem de estabelecimentos clientes. */
+export interface EstablishmentSummary {
+  id: string
+  name: string
+  slug: string
+  businessType: BusinessType
+  ownerName: string | null
+  email: string | null
+  phone: string | null
+  city: string | null
+  state: string | null
+  active: boolean
+  createdAt: string
+}
+
+/** Detalhe do estabelecimento (document = CPF ou CNPJ, só dígitos). */
+export interface EstablishmentDetail extends EstablishmentSummary {
+  document: string
+  whatsapp: string | null
+  zipCode: string | null
+  street: string | null
+  number: string
+  complement: string | null
+  district: string | null
+  updatedAt: string
+  users: Array<{ id: string; name: string; email: string; active: boolean; createdAt: string }>
 }

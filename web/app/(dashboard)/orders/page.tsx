@@ -6,6 +6,9 @@ import { dataApi } from '@/hooks/useApi'
 import { Header } from '@/components/layout/Header'
 import { OrderCard } from '@/components/orders/OrderCard'
 import { NewOrderModal } from '@/components/orders/NewOrderModal'
+import { CancelOrderModal } from '@/components/orders/CancelOrderModal'
+import { submitCancellation } from '@/lib/orderCancellation'
+import { STATUS_CONFLICT_MESSAGE, applyStatusChange } from '@/lib/orderStatusChange'
 import { PageLoader } from '@/components/ui/LoadingSpinner'
 import { OrdersPausedNotice, useOrdersPaused, PAUSED_TITLE } from '@/components/orders/OrdersPausedNotice'
 import { useServerNow } from '@/hooks/useServerNow'
@@ -68,16 +71,41 @@ export default function OrdersPage() {
     return () => clearInterval(t)
   }, [load])
 
-  const handleStatusChange = async (orderId: string, status: string) => {
-    await dataApi.updateOrderStatus(orderId, status)
-    toast.success(`Status atualizado: ${ORDER_STATUS_LABEL[status as OrderStatus]}`)
-    load()
-  }
+  // 409: outra operação mudou o pedido antes; avisa e recarrega (sem sucesso, sem repetir)
+  const handleStatusChange = (orderId: string, status: string) =>
+    applyStatusChange(() => dataApi.updateOrderStatus(orderId, status), {
+      onSuccess: () => {
+        toast.success(`Status atualizado: ${ORDER_STATUS_LABEL[status as OrderStatus]}`)
+        load()
+      },
+      onConflict: () => {
+        toast.error(STATUS_CONFLICT_MESSAGE)
+        load()
+      },
+    })
 
-  const handleCancel = async (orderId: string) => {
-    await dataApi.updateOrderStatus(orderId, 'CANCELLED')
-    toast.success('Pedido cancelado')
-    load()
+  // Cancelamento: abre a confirmação com motivo obrigatório (nunca cancela direto)
+  const [cancelling, setCancelling] = useState<Order | null>(null)
+  const handleCancel = (order: Order) => setCancelling(order)
+
+  /** Mensagem para o modal exibir, ou null quando o fluxo terminou (fecha o modal). */
+  const confirmCancel = async (reason: string): Promise<string | null> => {
+    if (!cancelling) return null
+    const result = await submitCancellation(cancelling.id, reason, dataApi.cancelOrder)
+    if (result.ok) {
+      toast.success('Pedido cancelado')
+      setCancelling(null)
+      load()
+      return null
+    }
+    toast.error(result.message)
+    // 409: outra operação alterou o pedido antes; os dados atuais são recarregados
+    if (result.kind === 'conflict') {
+      setCancelling(null)
+      load()
+      return null
+    }
+    return result.message
   }
 
   const filtered = tab === 'active'
@@ -181,6 +209,13 @@ export default function OrdersPage() {
         open={showNew}
         onClose={() => setShowNew(false)}
         onCreated={load}
+      />
+
+      <CancelOrderModal
+        key={cancelling?.id ?? 'none'}
+        order={cancelling}
+        onClose={() => setCancelling(null)}
+        onConfirm={confirmCancel}
       />
     </div>
   )

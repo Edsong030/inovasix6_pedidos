@@ -15,6 +15,7 @@ import { formatDeadline, type Timing, type TimingState } from '@/lib/orderTiming
 import { serverNow } from '@/lib/serverClock'
 import { TimingPill, TIMING_STYLE } from '@/components/orders/OrderTiming'
 import { ItemOptions } from '@/components/orders/ItemOptions'
+import { STATUS_CONFLICT_MESSAGE, applyStatusChange } from '@/lib/orderStatusChange'
 import toast from 'react-hot-toast'
 
 const STATUS_COLOR: Record<string, string> = {
@@ -184,11 +185,18 @@ export default function KitchenPage() {
     return () => clearInterval(t)
   }, [load])
 
-  const handleAdvance = async (orderId: string, status: string) => {
-    await dataApi.updateOrderStatus(orderId, status)
-    toast.success(status === 'READY' ? '✅ Pedido pronto!' : '🍳 Preparo iniciado!')
-    load()
-  }
+  // 409: outra operação mudou o pedido antes; avisa e recarrega a fila (sem sucesso, sem repetir)
+  const handleAdvance = (orderId: string, status: string) =>
+    applyStatusChange(() => dataApi.updateOrderStatus(orderId, status), {
+      onSuccess: () => {
+        toast.success(status === 'READY' ? '✅ Pedido pronto!' : '🍳 Preparo iniciado!')
+        load()
+      },
+      onConflict: () => {
+        toast.error(STATUS_CONFLICT_MESSAGE)
+        load()
+      },
+    })
 
   const received  = orders.filter(o => o.status === 'RECEIVED')
   const preparing = orders.filter(o => o.status === 'PREPARING')

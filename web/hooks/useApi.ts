@@ -9,6 +9,7 @@ import {
   getDemoBusinessType, getDemoSettings, saveDemoSettings,
 } from '@/lib/demo'
 import api from '@/lib/api'
+import type { CancelPayload } from '@/lib/orderCancellation'
 import type { BusinessSettings, BusinessType, Order, OrderStatus, TableStatus } from '@/types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -126,6 +127,12 @@ export const dataApi = {
     IS_DEMO
       ? ok(demoStore.updateOrderStatus(id, status as OrderStatus))
       : api.patch(`/orders/${id}/status`, { status }),
+
+  /** Cancelamento: só ele leva motivo (obrigatório na API). A demo cancela no store local. */
+  cancelOrder: (id: string, payload: CancelPayload) =>
+    IS_DEMO
+      ? ok(demoStore.updateOrderStatus(id, 'CANCELLED'))
+      : api.patch(`/orders/${id}/status`, payload),
 
   // Kitchen
   getKitchenQueue: () =>

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, ShoppingBag, ChefHat, Table2,
-  UtensilsCrossed, BarChart3, Users, LogOut, CakeSlice, Menu, X, Settings,
+  UtensilsCrossed, BarChart3, Users, LogOut, CakeSlice, Menu, X, Settings, Building2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -13,6 +13,7 @@ import { InovasixLogo } from '@/components/brand/InovasixLogo'
 import { useSettings } from '@/hooks/useSettings'
 import { asset } from '@/lib/asset'
 import { IS_DEMO } from '@/lib/demo'
+import { isPlatformAdmin } from '@/lib/permissions'
 import { BUSINESS_TYPES, DEMO_ESTABLISHMENTS, demoEstablishment, getBusinessProfile } from '@/lib/business'
 import type { BusinessType, UserRole } from '@/types'
 
@@ -24,7 +25,7 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard',  icon: <LayoutDashboard size={18} /> },
+  { href: '/dashboard', label: 'Dashboard',  icon: <LayoutDashboard size={18} />, roles: ['ADMIN','MANAGER','ATTENDANT','KITCHEN','DELIVERY'] },
   { href: '/orders',    label: 'Pedidos',    icon: <ShoppingBag size={18} />,     roles: ['ADMIN','MANAGER','ATTENDANT','DELIVERY'] },
   { href: '/kitchen',   label: 'Cozinha',    icon: <ChefHat size={18} />,         roles: ['ADMIN','MANAGER','KITCHEN','ATTENDANT'] },
   { href: '/tables',    label: 'Mesas',      icon: <Table2 size={18} />,          roles: ['ADMIN','MANAGER','ATTENDANT'] },
@@ -32,6 +33,8 @@ const NAV: NavItem[] = [
   { href: '/reports',   label: 'Relatórios', icon: <BarChart3 size={18} />,       roles: ['ADMIN','MANAGER'] },
   { href: '/users',     label: 'Usuários',   icon: <Users size={18} />,           roles: ['ADMIN','MANAGER'] },
   { href: '/settings',  label: 'Configurações', icon: <Settings size={18} />,   roles: ['ADMIN','MANAGER'] },
+  // Equipe Inovasix6: só a área da plataforma
+  { href: '/platform/establishments', label: 'Estabelecimentos', icon: <Building2 size={18} />, roles: ['PLATFORM_ADMIN'] },
 ]
 
 /** Logo do estabelecimento (Configurações). Não aparece se não houver logo ou se a imagem falhar. */
@@ -108,7 +111,7 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
             <BusinessLogo src={settings?.logoUrl} size={36} />
             <div className="min-w-0 flex-1">
               <p className="text-xs uppercase tracking-wider" style={{ color: 'rgba(148, 163, 184, 0.7)' }}>
-                {business.label}
+                {isPlatformAdmin(user.role) ? 'Plataforma' : business.label}
               </p>
               <p className="text-sm font-medium text-white truncate mt-0.5">{user.restaurantName}</p>
             </div>
@@ -212,7 +215,7 @@ export function Sidebar() {
   const pathname = usePathname()
 
   // Dashboard e Relatórios: sidebar levemente translúcida sobre o fundo tecnológico
-  const overTechBackground = ['/dashboard', '/reports', '/settings'].some(p => pathname.startsWith(p))
+  const overTechBackground = ['/dashboard', '/reports', '/settings', '/platform'].some(p => pathname.startsWith(p))
 
   return (
     <aside
@@ -286,7 +289,7 @@ export function MobileNav() {
             <BusinessLogo src={settings?.logoUrl} size={28} />
             <div className="min-w-0 flex-1">
               <p className="text-[10px] uppercase tracking-wider truncate" style={{ color: 'rgba(148, 163, 184, 0.7)' }}>
-                {business.label}
+                {isPlatformAdmin(user.role) ? 'Plataforma' : business.label}
               </p>
               <p className="text-sm font-medium text-white truncate">{user.restaurantName}</p>
             </div>

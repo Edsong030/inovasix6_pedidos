@@ -159,7 +159,7 @@ describe('pedidos: mesa de outro restaurante', () => {
 
   it('token do B não altera nem libera pedido/mesa do A (404)', async () => {
     const o = await prisma.order.findFirstOrThrow({ where: { tableId: A.tableId } });
-    expect((await http.patch(`/api/orders/${o.id}/status`).set(auth('bAdmin')).send({ status: 'CANCELLED' })).status).toBe(404);
+    expect((await http.patch(`/api/orders/${o.id}/status`).set(auth('bAdmin')).send({ status: 'CANCELLED', reason: 'Teste' })).status).toBe(404);
     expect((await prisma.order.findUniqueOrThrow({ where: { id: o.id } })).status).toBe('RECEIVED');
     expect((await prisma.table.findUniqueOrThrow({ where: { id: A.tableId } })).status).toBe('OCCUPIED');
   });

@@ -24,6 +24,9 @@ export const MANAGEABLE_ROLES: Readonly<Record<UserRole, readonly UserRole[]>> =
   [UserRole.ATTENDANT]: [],
   [UserRole.KITCHEN]: [],
   [UserRole.DELIVERY]: [],
+  // Não gerencia usuários de estabelecimento; e ninguém cria PLATFORM_ADMIN pela API
+  // (só pelo script platform:create-admin)
+  [UserRole.PLATFORM_ADMIN]: [],
 };
 
 /** Papéis que acessam a gestão de usuários (listar, criar, editar). */
@@ -49,6 +52,9 @@ export function canManageRole(actor: UserRole, target: UserRole): boolean {
 //
 //   * ATTENDANT vê a produção: coordena balcão e salão com a cozinha (quando chamar o
 //     cliente, o que falta sair) e já pode avançar o preparo pela linha acima.
+
+//   PLATFORM_ADMIN (equipe Inovasix6) não aparece em nenhuma linha acima: não acessa a
+//   operação de estabelecimento algum. Só a área /platform (ver PlatformAdminGuard).
 
 const { ADMIN, MANAGER, ATTENDANT, KITCHEN, DELIVERY } = UserRole;
 

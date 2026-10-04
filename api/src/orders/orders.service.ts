@@ -203,65 +203,102 @@ export class OrdersService {
     });
   }
 
-  async updateStatus(id: string, restaurantId: string, dto: UpdateOrderStatusDto, role: UserRole) {
-    // 404 se o pedido não é do restaurante ou não é visível para o papel (ex.: DELIVERY x balcão)
-    const order = await this.findOne(id, restaurantId, role);
-    if (!canChangeOrderStatus(role, order, dto.status)) {
-      throw new ForbiddenException('Seu perfil não pode levar este pedido a este status');
-    }
+  /** `actorId`: usuário autenticado que faz a mudança (registrado no histórico). */
+  async updateStatus(id: string, restaurantId: string, dto: UpdateOrderStatusDto, role: UserRole, actorId: string) {
+    // Tudo ou nada: status, timestamps, histórico e mesa na mesma transação
+    return this.prisma.$transaction(async (tx) => {
+      // 404 se o pedido não é do restaurante ou não é visível para o papel (ex.: DELIVERY x balcão)
+      const order = await tx.order.findFirst({
+        where: { id, restaurantId, ...orderVisibility(role) },
+        select: { status: true, channel: true, tableId: true },
+      });
+      if (!order) throw new NotFoundException('Pedido não encontrado');
+      if (!canChangeOrderStatus(role, order, dto.status)) {
+        throw new ForbiddenException('Seu perfil não pode levar este pedido a este status');
+      }
 
-    const validTransitions: Record<string, OrderStatus[]> = {
-      RECEIVED: [OrderStatus.PREPARING, OrderStatus.CANCELLED],
-      PREPARING: [OrderStatus.READY, OrderStatus.CANCELLED],
-      READY: [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED, OrderStatus.CANCELLED],
-      OUT_FOR_DELIVERY: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
-      DELIVERED: [],
-      CANCELLED: [],
-    };
+      const validTransitions: Record<string, OrderStatus[]> = {
+        RECEIVED: [OrderStatus.PREPARING, OrderStatus.CANCELLED],
+        PREPARING: [OrderStatus.READY, OrderStatus.CANCELLED],
+        READY: [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED, OrderStatus.CANCELLED],
+        OUT_FOR_DELIVERY: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
+        DELIVERED: [],
+        CANCELLED: [],
+      };
 
-    const status = dto.status as OrderStatus;
-    const allowed = validTransitions[order.status] ?? [];
-    if (!allowed.includes(status)) {
-      throw new BadRequestException(
-        `Transição inválida: ${order.status} → ${status}`,
-      );
-    }
+      const status = dto.status as OrderStatus;
+      const allowed = validTransitions[order.status] ?? [];
+      if (!allowed.includes(status)) {
+        throw new BadRequestException(
+          `Transição inválida: ${order.status} → ${status}`,
+        );
+      }
 
-    const now = new Date();
-    const timestamps: Record<string, Date | null> = {};
-    if (status === OrderStatus.PREPARING) timestamps['prepStartedAt'] = now;
-    if (status === OrderStatus.READY) timestamps['readyAt'] = now;
-    if (status === OrderStatus.DELIVERED) timestamps['deliveredAt'] = now;
-    if (status === OrderStatus.CANCELLED) timestamps['cancelledAt'] = now;
+      const now = new Date();
+      const timestamps: Record<string, Date | null> = {};
+      if (status === OrderStatus.PREPARING) timestamps['prepStartedAt'] = now;
+      if (status === OrderStatus.READY) timestamps['readyAt'] = now;
+      if (status === OrderStatus.DELIVERED) timestamps['deliveredAt'] = now;
+      if (status === OrderStatus.CANCELLED) timestamps['cancelledAt'] = now;
 
-    const updated = await this.prisma.order.update({
-      where: { id, restaurantId },
-      data: { status, ...timestamps },
-      include: this.orderInclude,
-    });
+      // Grava só se o status ainda é o que foi validado acima. Uma alteração concorrente
+      // já gravada faz o UPDATE não encontrar a linha (o Postgres reavalia o WHERE após o
+      // bloqueio): nada é sobrescrito e quem chegou depois recebe 409.
+      const { count } = await tx.order.updateMany({
+        where: { id, restaurantId, status: order.status },
+        data: { status, ...timestamps },
+      });
+      if (count === 0) {
+        throw new ConflictException(
+          'O pedido foi alterado por outra operação. Atualize os dados e tente novamente.',
+        );
+      }
 
-    // Libera mesa quando pedido é encerrado
-    if (
-      order.tableId &&
-      (status === OrderStatus.DELIVERED || status === OrderStatus.CANCELLED)
-    ) {
-      const activeOrders = await this.prisma.order.count({
-        where: {
-          restaurantId,
-          tableId: order.tableId,
-          status: { in: ['RECEIVED', 'PREPARING', 'READY'] },
+      // Só depois de vencer a gravação condicional: quem recebe 409 nunca chega aqui, e
+      // qualquer falha adiante desfaz também este registro
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: id,
+          fromStatus: order.status,
+          toStatus: status,
+          userId: actorId,
+          reason: dto.reason ?? null,
         },
       });
-      if (activeOrders === 0) {
-        // updateMany com restaurantId: nunca libera mesa de outro restaurante
-        await this.prisma.table.updateMany({
-          where: { id: order.tableId, restaurantId },
-          data: { status: 'AVAILABLE' },
-        });
-      }
-    }
 
-    return updated;
+      // Libera mesa quando pedido é encerrado
+      if (
+        order.tableId &&
+        (status === OrderStatus.DELIVERED || status === OrderStatus.CANCELLED)
+      ) {
+        // Trava a mesa antes de contar: um pedido novo para ela (a criação também grava a
+        // mesa na própria transação) espera esta terminar ou é contado aqui, e a mesa
+        // nunca fica livre com pedido ativo
+        await tx.$queryRaw`
+          SELECT id FROM tables
+          WHERE id = ${order.tableId} AND "restaurantId" = ${restaurantId}
+          FOR UPDATE`;
+        const activeOrders = await tx.order.count({
+          where: {
+            restaurantId,
+            tableId: order.tableId,
+            status: { in: ['RECEIVED', 'PREPARING', 'READY'] },
+          },
+        });
+        if (activeOrders === 0) {
+          // updateMany com restaurantId: nunca libera mesa de outro restaurante
+          await tx.table.updateMany({
+            where: { id: order.tableId, restaurantId },
+            data: { status: 'AVAILABLE' },
+          });
+        }
+      }
+
+      return tx.order.findFirstOrThrow({
+        where: { id, restaurantId },
+        include: this.orderInclude,
+      });
+    });
   }
 
   async getDashboard(restaurantId: string, role: UserRole) {
