@@ -9,6 +9,7 @@ import { TechBackdrop } from '@/components/layout/TechBackdrop'
 import { PageLoader } from '@/components/ui/LoadingSpinner'
 import { BrandFooter } from '@/components/brand'
 import { asset } from '@/lib/asset'
+import { isPlatformAdmin } from '@/lib/permissions'
 
 function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth()
@@ -19,13 +20,22 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
     if (!isLoading && !user) router.push('/login')
   }, [user, isLoading, router])
 
-  if (isLoading) return <PageLoader />
+  // Equipe Inovasix6 (PLATFORM_ADMIN) só usa /platform; os demais perfis nunca entram nela.
+  // A API recusa de qualquer forma (403); aqui só evita abrir a tela errada.
+  const platformUser = isPlatformAdmin(user?.role)
+  const platformArea = !!pathname?.startsWith('/platform')
+  const wrongArea = !!user && platformUser !== platformArea
+  useEffect(() => {
+    if (wrongArea) router.replace(platformUser ? '/platform/establishments' : '/dashboard')
+  }, [wrongArea, platformUser, router])
+
+  if (isLoading || wrongArea) return <PageLoader />
   if (!user) return null
 
   // URL do fundo com basePath correto (funciona local e no GitHub Pages)
   const bgUrl = asset('/brand/dashboard-background.png')
   // Dashboard, Relatórios e Configurações usam fundo tecnológico próprio (sem foto)
-  const plainBackground = ['/dashboard', '/reports', '/settings'].some(p => pathname?.startsWith(p))
+  const plainBackground = ['/dashboard', '/reports', '/settings', '/platform'].some(p => pathname?.startsWith(p))
 
   return (
     // Desktop (≥1024px): sidebar fixa e rolagem dentro do <main>.

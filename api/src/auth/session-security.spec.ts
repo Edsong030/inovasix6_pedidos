@@ -91,7 +91,14 @@ describe('JwtStrategy.validate', () => {
   const future = new Date(Date.now() + 3_600_000);
   const base = {
     userId: 'u1', restaurantId: 'r1', expiresAt: future, revokedAt: null as Date | null,
-    user: { id: 'u1', email: 'u@x', role: UserRole.ATTENDANT as UserRole, active: true, restaurantId: 'r1' },
+    user: {
+      id: 'u1',
+      email: 'u@x',
+      role: UserRole.ATTENDANT as UserRole,
+      active: true,
+      restaurantId: 'r1',
+      restaurant: { active: true },
+    },
   };
   const strategy = (session: unknown) => {
     const prisma = { userSession: { findUnique: jest.fn(async () => session) } };
@@ -112,6 +119,10 @@ describe('JwtStrategy.validate', () => {
     ['sessão de outro usuário', { ...base, userId: 'outro' }],
     ['token com restaurante trocado', { ...base, restaurantId: 'r2' }],
     ['usuário movido para outro restaurante', { ...base, user: { ...base.user, restaurantId: 'r2' } }],
+    [
+      'estabelecimento inativado pela plataforma',
+      { ...base, user: { ...base.user, restaurant: { active: false } } },
+    ],
   ])('%s → 401', async (_, session) => {
     await expect(strategy(session).validate(payload)).rejects.toBeInstanceOf(UnauthorizedException);
   });

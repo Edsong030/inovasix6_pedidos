@@ -60,6 +60,7 @@ export class OrdersController {
     @Body() dto: UpdateOrderStatusDto,
     @CurrentUser() u: AuthUser,
   ) {
-    return this.svc.updateStatus(id, u.restaurantId, dto, u.role);
+    // u.id: quem executa a mudança (sessão validada no banco), gravado no histórico
+    return this.svc.updateStatus(id, u.restaurantId, dto, u.role, u.id);
   }
 }

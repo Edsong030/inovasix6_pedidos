@@ -9,11 +9,11 @@ import { BusinessType } from '@prisma/client';
 import { ACCENT_COLORS, TIME_REGEX, UFS, isValidCnpj } from '../settings.constants';
 
 /** Texto aparado; vazio vira null (limpa o campo). */
-const TrimOrNull = () =>
+export const TrimOrNull = () =>
   Transform(({ value }) => (typeof value === 'string' ? value.trim() || null : value));
 
 /** Só dígitos; vazio vira null. */
-const DigitsOrNull = () =>
+export const DigitsOrNull = () =>
   Transform(({ value }) => (typeof value === 'string' ? value.replace(/\D/g, '') || null : value));
 
 @ValidatorConstraint({ name: 'cnpj' })

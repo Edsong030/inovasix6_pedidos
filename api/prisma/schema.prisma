@@ -51,6 +51,15 @@ model Restaurant {
   orderSeq                Int      @default(0)
   showUnavailableProducts Boolean  @default(false)
   orderMessage            String?
+
+  // ─── Cadastro da plataforma (área PLATFORM_ADMIN) ──────────────────────────
+  /// Estabelecimento interno da Inovasix6 que abriga os usuários PLATFORM_ADMIN. Nunca é
+  /// listado nem alterado pela área administrativa e não é um cliente.
+  isPlatform              Boolean  @default(false)
+  /// Nome do responsável pelo cliente
+  ownerName               String?
+  /// CPF do cliente pessoa física (somente dígitos). Cliente com CNPJ usa o campo cnpj.
+  cpf                     String?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -72,6 +81,9 @@ enum UserRole {
   ATTENDANT
   KITCHEN
   DELIVERY
+  /// Equipe Inovasix6: cadastra e gerencia estabelecimentos clientes. Só existe no
+  /// estabelecimento interno da plataforma (Restaurant.isPlatform) e não acessa a operação.
+  PLATFORM_ADMIN
 }
 
 model User {
@@ -88,6 +100,8 @@ model User {
   restaurant Restaurant @relation(fields: [restaurantId], references: [id])
   orders     Order[]
   sessions   UserSession[]
+  /// Mudanças de status de pedido feitas por este usuário
+  statusChanges OrderStatusHistory[]
 
   @@unique([email, restaurantId])
   @@map("users")
@@ -251,10 +265,36 @@ model Order {
   user       User        @relation(fields: [userId], references: [id])
   table      Table?      @relation(fields: [tableId], references: [id])
   items      OrderItem[]
+  statusHistory OrderStatusHistory[]
 
   /// Numero do pedido unico por restaurante (o contador fica em Restaurant.orderSeq)
   @@unique([restaurantId, orderNumber])
   @@map("orders")
+}
+
+/// Histórico das mudanças de status feitas por PATCH /orders/:id/status (pedidos criados
+/// antes desta tabela não têm histórico). Complementa os timestamps do pedido.
+/// O restaurante vem do pedido (orderId): não há restaurantId duplicado aqui.
+model OrderStatusHistory {
+  id         String      @id @default(cuid())
+  orderId    String
+  fromStatus OrderStatus
+  toStatus   OrderStatus
+  /// Quem fez a mudança (não é o Order.userId, que é quem criou o pedido)
+  userId     String
+  /// Obrigatório quando toStatus = CANCELLED (validado na API)
+  reason     String?
+  createdAt  DateTime    @default(now())
+
+  // Restrict nas duas FKs: o histórico operacional nunca some junto com o pedido ou o
+  // usuário. A API não exclui pedidos e só desativa usuários; excluir à força exige
+  // apagar o histórico antes, de propósito.
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([orderId, createdAt])
+  @@index([userId])
+  @@map("order_status_history")
 }
 
 model OrderItem {

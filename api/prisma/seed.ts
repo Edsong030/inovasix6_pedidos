@@ -56,6 +56,10 @@ function seeded(seed: string) {
 async function wipeTenant(restaurant: { id: string; slug: string }) {
   if (!DEMO_TENANT_TYPES[restaurant.slug]) throw new Error(`Recusado: "${restaurant.slug}" não é estabelecimento de demonstração`);
   const restaurantId = restaurant.id;
+  // O histórico de status protege os pedidos (FK Restrict): no reset da demo, sai antes deles
+  await prisma.orderStatusHistory.deleteMany({
+    where: { order: { restaurantId } },
+  });
   await prisma.order.deleteMany({ where: { restaurantId } }); // itens e opções em cascata
   await prisma.product.deleteMany({ where: { restaurantId } });
   await prisma.category.deleteMany({ where: { restaurantId } });

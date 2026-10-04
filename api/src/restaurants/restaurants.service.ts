@@ -52,7 +52,18 @@ function toSettings(r: SettingsRow) {
 }
 
 /** "Rua X, 123 - Compl. - Bairro - Cidade/UF - CEP 00000-000" para o campo legado `address`. */
-function addressLine(r: SettingsRow): string | null {
+export function addressLine(
+  r: Pick<
+    SettingsRow,
+    | 'street'
+    | 'addressNumber'
+    | 'complement'
+    | 'district'
+    | 'city'
+    | 'state'
+    | 'zipCode'
+  >,
+): string | null {
   const street = [r.street, r.addressNumber].filter(Boolean).join(', ');
   const city = [r.city, r.state].filter(Boolean).join('/');
   const cep = r.zipCode ? `CEP ${r.zipCode.replace(/^(\d{5})(\d{3})$/, '$1-$2')}` : '';

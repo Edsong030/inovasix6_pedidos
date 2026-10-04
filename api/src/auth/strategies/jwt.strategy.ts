@@ -42,7 +42,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       where: { id: payload.sid },
       select: {
         userId: true, restaurantId: true, expiresAt: true, revokedAt: true,
-        user: { select: { id: true, email: true, role: true, active: true, restaurantId: true } },
+        user: {
+          select: {
+            id: true, email: true, role: true, active: true, restaurantId: true,
+            restaurant: { select: { active: true } },
+          },
+        },
       },
     });
     const valid =
@@ -52,7 +57,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       session.userId === payload.sub &&
       session.restaurantId === payload.rid &&
       session.user.active &&
-      session.user.restaurantId === payload.rid;
+      session.user.restaurantId === payload.rid &&
+      // Estabelecimento inativado pela plataforma: as sessões caem na requisição seguinte
+      session.user.restaurant.active;
     if (!valid) throw new UnauthorizedException('Sessão expirada ou encerrada. Entre novamente.');
     return {
       id: session.user.id,

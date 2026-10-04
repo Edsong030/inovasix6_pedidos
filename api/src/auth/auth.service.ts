@@ -27,8 +27,9 @@ export class AuthService {
    * senha ou usuário inativo) responde a mesma mensagem genérica.
    */
   async login(email: string, password: string, restaurantSlug: string, sessionMs: number): Promise<LoginResult> {
-    const restaurant = await this.prisma.restaurant.findUnique({ where: { slug: restaurantSlug }, select: { id: true } });
-    const user = await this.validateUser(email, password, restaurant?.id ?? null);
+    const restaurant = await this.prisma.restaurant.findUnique({ where: { slug: restaurantSlug }, select: { id: true, active: true } });
+    // Estabelecimento inativo (área da plataforma) responde como credencial inválida
+    const user = await this.validateUser(email, password, restaurant?.active ? restaurant.id : null);
 
     const now = Date.now();
     // Limpeza oportunista: sessões expiradas deste usuário

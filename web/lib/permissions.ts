@@ -14,7 +14,11 @@ export const MANAGEABLE_ROLES: Record<UserRole, readonly UserRole[]> = {
   ATTENDANT: [],
   KITCHEN:   [],
   DELIVERY:  [],
+  PLATFORM_ADMIN: [],
 }
+
+/** Equipe Inovasix6: só a área /platform (a API confere também o estabelecimento da plataforma). */
+export const isPlatformAdmin = (role: Role) => role === 'PLATFORM_ADMIN'
 
 export function canManageRole(actor: Role, target: UserRole): boolean {
   return !!actor && MANAGEABLE_ROLES[actor].includes(target)

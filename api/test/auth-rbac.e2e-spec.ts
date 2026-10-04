@@ -52,7 +52,9 @@ async function createOrder(channel: string, extra: Record<string, unknown> = {})
   expect(res.status).toBe(201);
   return res.body as { id: string; status: string };
 }
-const setStatus = (key: string, id: string, status: string) => http.patch(`/api/orders/${id}/status`).set(as(key)).send({ status });
+// Cancelar exige motivo (DTO): o helper envia um para que os testes exercitem papel e transição
+const setStatus = (key: string, id: string, status: string) =>
+  http.patch(`/api/orders/${id}/status`).set(as(key)).send({ status, ...(status === 'CANCELLED' && { reason: 'Teste' }) });
 
 beforeAll(async () => {
   const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();

@@ -1,8 +1,8 @@
 import {
   ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString,
-  MaxLength, Min, ValidateNested,
+  MaxLength, Min, ValidateIf, ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { OrderChannel, OrderStatus, PaymentMethod } from '@prisma/client';
 
@@ -93,8 +93,32 @@ export class CreateOrderDto {
   items: OrderItemDto[];
 }
 
+const CANCEL_REASON_REQUIRED = 'Informe o motivo do cancelamento';
+
 export class UpdateOrderStatusDto {
   @ApiProperty({ enum: OrderStatus })
   @IsEnum(OrderStatus, { message: 'Status inválido' })
   status: OrderStatus;
+
+  @ApiPropertyOptional({
+    maxLength: 500,
+    description:
+      'Motivo da mudança. Obrigatório quando status = CANCELLED; gravado no histórico.',
+  })
+  // Aparado; vazio ou só espaços conta como ausente
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() || undefined : value,
+  )
+  // Cancelamento sempre valida (ausente → 400); nas demais, só se o motivo foi enviado
+  @ValidateIf(
+    (o: UpdateOrderStatusDto) =>
+      o.status === OrderStatus.CANCELLED ||
+      (o.reason !== undefined && o.reason !== null),
+  )
+  // Ordem inversa de propósito: o class-validator lista a mensagem do último decorador
+  // primeiro, e a primeira mensagem é a exibida ("Informe o motivo..." quando ausente)
+  @MaxLength(500, { message: 'O motivo pode ter no máximo 500 caracteres' })
+  @IsString({ message: 'O motivo deve ser um texto' })
+  @IsNotEmpty({ message: CANCEL_REASON_REQUIRED })
+  reason?: string;
 }

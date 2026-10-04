@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   MANAGEABLE_ROLES, canManageRole, canCreateOrder, canSeeFinance, canChangeTableStatus,
-  canChangeOrderStatus, passwordProblem,
+  canChangeOrderStatus, passwordProblem, isPlatformAdmin,
 } from '../lib/permissions.ts'
 
 const ALL = ['ADMIN', 'MANAGER', 'ATTENDANT', 'KITCHEN', 'DELIVERY']
@@ -41,4 +41,18 @@ test('transições de status por papel', () => {
 test('regra de senha nova igual à da API', () => {
   for (const bad of ['abc12345', 'somenteletras', '12345678901', 'admin123']) assert.ok(passwordProblem(bad), bad)
   for (const ok of ['SenhaForte123', 'cafe com leite 2026', 'Pão de queijo 10']) assert.equal(passwordProblem(ok), null, ok)
+})
+
+test('PLATFORM_ADMIN: só a área da plataforma, nada da operação', () => {
+  const p = 'PLATFORM_ADMIN'
+  assert.deepEqual(MANAGEABLE_ROLES.PLATFORM_ADMIN, [])
+  for (const r of ALL) assert.equal(canManageRole(r, p), false, r)
+  assert.equal(isPlatformAdmin(p), true)
+  for (const r of ALL) assert.equal(isPlatformAdmin(r), false, r)
+  assert.equal(canCreateOrder(p), false)
+  assert.equal(canSeeFinance(p), false)
+  assert.equal(canChangeTableStatus(p), false)
+  for (const to of ['PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED']) {
+    assert.equal(canChangeOrderStatus(p, { status: 'RECEIVED', channel: 'DELIVERY' }, to), false, to)
+  }
 })

@@ -18,7 +18,8 @@ interface OrderCardProps {
   /** Horário do servidor (ms) para a previsão de pronto */
   now: number
   onStatusChange: (orderId: string, status: string) => Promise<void>
-  onCancel: (orderId: string) => Promise<void>
+  /** Abre a confirmação com motivo (o cancelamento em si é feito pela página) */
+  onCancel: (order: Order) => void
 }
 
 export function OrderCard({ order, now, onStatusChange, onCancel }: OrderCardProps) {
@@ -43,12 +44,7 @@ export function OrderCard({ order, now, onStatusChange, onCancel }: OrderCardPro
     finally { setLoading(false) }
   }
 
-  const handleCancel = async () => {
-    if (!confirm('Cancelar este pedido?')) return
-    setLoading(true)
-    try { await onCancel(order.id) }
-    finally { setLoading(false) }
-  }
+  const handleCancel = () => onCancel(order)
 
   return (
     <div className={cn(
@@ -162,7 +158,7 @@ export function OrderCard({ order, now, onStatusChange, onCancel }: OrderCardPro
             </button>
           )}
           {canCancel && (
-            <button onClick={handleCancel} disabled={loading} className="btn-secondary px-3 text-red-400 hover:text-red-300 hover:bg-red-500/10">
+            <button onClick={handleCancel} disabled={loading} aria-label="Cancelar pedido" title="Cancelar pedido" className="btn-secondary px-3 text-red-400 hover:text-red-300 hover:bg-red-500/10">
               <XCircle size={16} />
             </button>
           )}
