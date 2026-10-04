@@ -109,35 +109,58 @@ const firstMessage = (res: request.Response) => {
 };
 
 /** Espera até `n` sessões do banco estarem paradas aguardando um bloqueio de linha. */
-async function waitForLockWaits(n: number) {
-  for (let i = 0; i < 200; i++) {
+async function waitForLockWaits(n: number, deadlineMs = 10_000) {
+  const deadline = Date.now() + deadlineMs;
+  while (Date.now() < deadline) {
     const [{ waiting }] = await prisma.$queryRaw<Array<{ waiting: number }>>`
       SELECT count(*)::int AS waiting FROM pg_stat_activity
-      WHERE datname = current_database() AND wait_event_type = 'Lock'`;
+      WHERE datname = current_database() AND wait_event_type = 'Lock'
+        AND pid <> pg_backend_pid()`;
     if (waiting >= n) return;
-    await new Promise((r) => setTimeout(r, 50));
+    await new Promise((r) => setTimeout(r, 20));
   }
   throw new Error(`As requisições não chegaram a esperar o bloqueio (${n})`);
 }
 
-/** Abre uma transação que segura um bloqueio até `release()` ser chamado. */
+/**
+ * Abre uma transação que segura um bloqueio. Use `await held` antes de disparar as
+ * requisições: sem isso, uma delas pode chegar ao banco antes do bloqueio, gravar e
+ * sair, e a corrida não acontece (foi o que deixava o teste instável no CI).
+ */
 function holdLock(
   work: (
     tx: Parameters<Parameters<PrismaClient['$transaction']>[0]>[0],
   ) => Promise<unknown>,
 ) {
   let release!: () => void;
+  let markHeld!: () => void;
   const gate = new Promise<void>((r) => {
     release = r;
+  });
+  const acquired = new Promise<void>((r) => {
+    markHeld = r;
   });
   const done = prisma.$transaction(
     async (tx) => {
       await work(tx);
+      markHeld();
       await gate;
     },
     { timeout: 20_000 },
   );
-  return { release, done };
+  return {
+    // Rejeita junto se a transação falhar antes de obter o bloqueio
+    held: Promise.race([acquired, done.then(() => undefined)]),
+    /** Libera quando `n` requisições estiverem presas no bloqueio; em falha, libera também. */
+    async releaseWhenWaiting(n: number) {
+      try {
+        await waitForLockWaits(n);
+      } finally {
+        release();
+        await done;
+      }
+    },
+  };
 }
 
 describe('histórico: mudanças registradas', () => {
@@ -323,15 +346,14 @@ describe('histórico: concorrência e atomicidade', () => {
     const lock = holdLock(
       (tx) => tx.$queryRaw`SELECT id FROM orders WHERE id = ${o.id} FOR UPDATE`,
     );
+    await lock.held;
     const ready = patch(o.id, { status: 'READY' }, 'kitchen').then((r) => r);
     const cancel = patch(
       o.id,
       { status: 'CANCELLED', reason: 'Disputa' },
       'manager',
     ).then((r) => r);
-    await waitForLockWaits(2);
-    lock.release();
-    await lock.done;
+    await lock.releaseWhenWaiting(2);
 
     const results = [await ready, await cancel];
     const winner = results.find((r) => r.status === 200);
@@ -362,13 +384,12 @@ describe('histórico: concorrência e atomicidade', () => {
         data: { status: 'PREPARING', prepStartedAt: new Date() },
       }),
     );
+    await other.held;
     const pending = patch(o.id, {
       status: 'CANCELLED',
       reason: 'Cliente saiu',
     }).then((r) => r);
-    await waitForLockWaits(1);
-    other.release();
-    await other.done;
+    await other.releaseWhenWaiting(1);
 
     expect((await pending).status).toBe(409);
     expect(await history(o.id)).toHaveLength(0);

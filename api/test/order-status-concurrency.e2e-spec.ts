@@ -110,35 +110,58 @@ const tableStatus = async (id: string) =>
   (await prisma.table.findUniqueOrThrow({ where: { id } })).status;
 
 /** Espera até `n` sessões do banco estarem paradas aguardando um bloqueio de linha. */
-async function waitForLockWaits(n: number) {
-  for (let i = 0; i < 200; i++) {
+async function waitForLockWaits(n: number, deadlineMs = 10_000) {
+  const deadline = Date.now() + deadlineMs;
+  while (Date.now() < deadline) {
     const [{ waiting }] = await prisma.$queryRaw<Array<{ waiting: number }>>`
       SELECT count(*)::int AS waiting FROM pg_stat_activity
-      WHERE datname = current_database() AND wait_event_type = 'Lock'`;
+      WHERE datname = current_database() AND wait_event_type = 'Lock'
+        AND pid <> pg_backend_pid()`;
     if (waiting >= n) return;
-    await new Promise((r) => setTimeout(r, 50));
+    await new Promise((r) => setTimeout(r, 20));
   }
   throw new Error(`As requisições não chegaram a esperar o bloqueio (${n})`);
 }
 
-/** Abre uma transação que segura um bloqueio até `release()` ser chamado. */
+/**
+ * Abre uma transação que segura um bloqueio. Use `await held` antes de disparar as
+ * requisições: sem isso, uma delas pode chegar ao banco antes do bloqueio, gravar e
+ * sair, e a corrida não acontece (foi o que deixava o teste instável no CI).
+ */
 function holdLock(
   work: (
     tx: Parameters<Parameters<PrismaClient['$transaction']>[0]>[0],
   ) => Promise<unknown>,
 ) {
   let release!: () => void;
+  let markHeld!: () => void;
   const gate = new Promise<void>((r) => {
     release = r;
+  });
+  const acquired = new Promise<void>((r) => {
+    markHeld = r;
   });
   const done = prisma.$transaction(
     async (tx) => {
       await work(tx);
+      markHeld();
       await gate;
     },
     { timeout: 20_000 },
   );
-  return { release, done };
+  return {
+    // Rejeita junto se a transação falhar antes de obter o bloqueio
+    held: Promise.race([acquired, done.then(() => undefined)]),
+    /** Libera quando `n` requisições estiverem presas no bloqueio; em falha, libera também. */
+    async releaseWhenWaiting(n: number) {
+      try {
+        await waitForLockWaits(n);
+      } finally {
+        release();
+        await done;
+      }
+    },
+  };
 }
 
 /** Status final e timestamps nunca de um estado incompatível com ele. */
@@ -166,11 +189,10 @@ describe('status de pedido: concorrência', () => {
     const lock = holdLock(
       (tx) => tx.$queryRaw`SELECT id FROM orders WHERE id = ${o.id} FOR UPDATE`,
     );
+    await lock.held;
     const ready = setStatus(o.id, 'READY').then((r) => r);
     const cancel = setStatus(o.id, 'CANCELLED').then((r) => r);
-    await waitForLockWaits(2);
-    lock.release();
-    await lock.done;
+    await lock.releaseWhenWaiting(2);
 
     const results = [await ready, await cancel];
     const winners = results.filter((r) => r.status === 200);
@@ -196,10 +218,9 @@ describe('status de pedido: concorrência', () => {
         data: { status: 'READY', readyAt: new Date() },
       }),
     );
+    await other.held;
     const pending = setStatus(o.id, 'CANCELLED').then((r) => r);
-    await waitForLockWaits(1);
-    other.release();
-    await other.done;
+    await other.releaseWhenWaiting(1);
 
     const res = await pending;
     expect(res.status).toBe(409);
@@ -320,10 +341,9 @@ describe('status de pedido: mesa', () => {
         data: { status: 'PREPARING', prepStartedAt: new Date() },
       }),
     );
+    await other.held;
     const pending = setStatus(o.id, 'CANCELLED').then((r) => r);
-    await waitForLockWaits(1);
-    other.release();
-    await other.done;
+    await other.releaseWhenWaiting(1);
 
     expect((await pending).status).toBe(409);
     expect(await tableStatus(table.id)).toBe('OCCUPIED');
@@ -362,10 +382,9 @@ describe('status de pedido: mesa', () => {
     });
 
     // Encerrar o pedido A espera a mesa; depois enxerga o pedido novo e não libera
+    await creation.held;
     const pending = setStatus(a.id, 'CANCELLED').then((r) => r);
-    await waitForLockWaits(1);
-    creation.release();
-    await creation.done;
+    await creation.releaseWhenWaiting(1);
 
     expect((await pending).status).toBe(200);
     expect(await tableStatus(table.id)).toBe('OCCUPIED');
