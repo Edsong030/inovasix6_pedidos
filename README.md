@@ -219,6 +219,10 @@ Pedidos podem ter **data/hora de retirada ou entrega** (`isPreorder`, `scheduled
 | `npm run db:demo-reset -- --confirm` | Recria só os 4 estabelecimentos demo ⚠️ apaga cardápio, mesas e pedidos deles (sem `--confirm` só lista; recusado em produção) |
 | `npm run db:studio`       | Abre Prisma Studio GUI em localhost:5555       |
 | `npm run db:reset`        | Reseta banco completo ⚠️ apaga todos os dados  |
+| `npm test`                | Testes unitários (não usam banco)              |
+| `npm run test:e2e:isolated` | Testes HTTP em banco descartável `_test` ⚠️ apaga o schema dele (ver [Testes HTTP (E2E) isolados](#testes-http-e2e-isolados)) |
+| `npm run test:e2e`        | Mesmo que `test:e2e:isolated` (mesmas travas)  |
+| `npm run platform:create-admin` | Cria/redefine o administrador da plataforma (variáveis `PLATFORM_*`) |
 
 ### Frontend (`web/`)
 
@@ -227,6 +231,7 @@ Pedidos podem ter **data/hora de retirada ou entrega** (`isPreorder`, `scheduled
 | `npm run dev`   | Inicia em modo desenvolvimento       |
 | `npm run build` | Gera build de produção               |
 | `npm run start` | Inicia servidor de produção          |
+| `npm test`      | Testes do web (sem API e sem banco)  |
 
 Com `NEXT_PUBLIC_DEMO_MODE=true`, `dev` roda a demo sem API e `build` gera o site estático em `web/out/` (ver [Demo](#demo-github-pages)).
 
@@ -407,11 +412,94 @@ ANOTA_AI_WEBHOOK_SECRET=
 ANOTA_AI_API_KEY=
 ```
 
-### `web/.env.local`
+Administrador da plataforma (só para `npm run platform:create-admin`; defina no terminal ao rodar o comando, sem salvar senha em arquivo):
 
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:3001/api
+PLATFORM_ADMIN_EMAIL=        # obrigatório: e-mail real de quem administra a plataforma
+PLATFORM_ADMIN_PASSWORD=     # obrigatório: 10+ caracteres, com letras e números
+PLATFORM_ADMIN_NAME=         # opcional (padrão: Equipe Inovasix6)
+PLATFORM_SLUG=               # opcional (padrão: inovasix-plataforma)
 ```
+
+### `web/.env.local`
+
+Modelo em `web/.env.example` (`copy web\.env.example web\.env.local` no PowerShell):
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3001/api   # embutida no build: refaça o build ao mudar
+NEXT_PUBLIC_DEMO_MODE=false                     # true = demo estática sem API (GitHub Pages)
+```
+
+---
+
+## Testes HTTP (E2E) isolados
+
+Os testes HTTP **apagam e recriam o schema** do banco (`prisma migrate reset`). Por isso o comando só roda quando **todas** as travas passam, antes de qualquer conexão ou escrita:
+
+1. `DATABASE_URL` definida **no terminal** (a do `api/.env` nunca é usada), PostgreSQL, com nome de banco terminando em `_test`;
+2. o banco não é `inovasix_pedidos` (desenvolvimento) nem o mesmo banco do `api/.env`;
+3. `E2E_CONFIRM_DB_RESET` igual ao **nome exato** do banco de teste.
+
+Use um Postgres descartável, separado do banco de desenvolvimento (porta 55432, dados em memória):
+
+```bash
+# 1. Sobe o banco de teste (some ao parar o container)
+docker run -d --rm --name inovasix_e2e_pg -e POSTGRES_USER=e2e -e POSTGRES_PASSWORD=e2e \
+  -e POSTGRES_DB=inovasix_pedidos_test -p 127.0.0.1:55432:5432 \
+  --tmpfs /var/lib/postgresql/data postgres:16-alpine
+
+# 2. Roda os testes HTTP (Bash)
+cd api
+DATABASE_URL="postgresql://e2e:e2e@127.0.0.1:55432/inovasix_pedidos_test?schema=public" \
+E2E_CONFIRM_DB_RESET=inovasix_pedidos_test npm run test:e2e:isolated
+
+# 3. Descarta o banco
+docker stop inovasix_e2e_pg
+```
+
+> No Git Bash (Windows), rode o passo 1 com `MSYS_NO_PATHCONV=1 docker run ...`: sem isso o caminho do `--tmpfs` é convertido para `C:/...` e o Docker recusa.
+
+No PowerShell, o passo 2 fica:
+
+```powershell
+cd api
+$env:DATABASE_URL = "postgresql://e2e:e2e@127.0.0.1:55432/inovasix_pedidos_test?schema=public"
+$env:E2E_CONFIRM_DB_RESET = "inovasix_pedidos_test"
+npm run test:e2e:isolated
+Remove-Item Env:DATABASE_URL, Env:E2E_CONFIRM_DB_RESET   # não deixe a URL de teste no terminal
+```
+
+No CI (`.github/workflows/ci.yml`) os testes HTTP rodam só contra o Postgres de serviço do próprio job, criado e destruído a cada execução. As travas têm testes em `api/test/e2e-env.spec.ts` (rodam no `npm test`).
+
+---
+
+## Homologação
+
+Fluxo seguro (nada aqui toca o banco de desenvolvimento):
+
+1. **Banco próprio da homologação**, vazio, nunca o `inovasix_pedidos` local. Aplique só as migrations: `npm run db:migrate:prod` (nunca `db:migrate`, `db:reset`, `db:seed` ou `db:demo-reset`).
+2. **Administrador da plataforma** com e-mail real: `npm run platform:create-admin` com as variáveis `PLATFORM_*` no terminal.
+3. **Variáveis obrigatórias** (sem valores de exemplo; nenhuma pode apontar para `localhost`):
+
+| Variável | Onde | Valor em homologação |
+|----------|------|----------------------|
+| `NODE_ENV` | API | `production` (ativa cookie `Secure`, recusa `JWT_SECRET` fraco e bloqueia seed/demo-reset) |
+| `JWT_SECRET` | API | **Novo**, 64+ caracteres aleatórios: `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`. Nunca reutilize o do dev nem os publicados no repositório |
+| `FRONTEND_URL` | API | Origem do web de homologação, ex.: `https://homolog.seudominio.com` (CORS e CSRF; sem ela a API cai em `http://localhost:3000`) |
+| `PUBLIC_API_URL` | API | Origem pública da API, ex.: `https://api-homolog.seudominio.com` (URLs dos uploads) |
+| `COOKIE_DOMAIN` | API | Vazio quando web e API ficam no mesmo host; `.seudominio.com` só se precisarem compartilhar o cookie entre subdomínios |
+| `NEXT_PUBLIC_API_URL` | Web (build) | `https://api-homolog.seudominio.com/api`, com `NEXT_PUBLIC_DEMO_MODE=false`. É embutida no build: gere o build do web já com o valor de homologação |
+
+4. **Validação antes de liberar:** `npm audit`, `npm test` e `npm run build` em `api/` e `web/`, e `npm run test:e2e:isolated` contra um banco descartável `_test` (seção acima).
+5. **Swagger** (`/api/docs`) continua exposto em todos os ambientes; veja a decisão pendente na próxima seção antes de publicar a homologação.
+
+### Swagger em homologação/produção (decisão pendente)
+
+Hoje `/api/docs` é público em qualquer `NODE_ENV`. Os endpoints continuam exigindo sessão, mas o documento revela o mapa completo da API. Proposta (ainda não aplicada; exige escolha de produto e, na opção B, credenciais):
+
+- **A. Desligar por variável:** `SWAGGER_ENABLED` (padrão `true` em desenvolvimento) que o deploy de produção/homologação define como `false`. Não exige credenciais.
+- **B. Proteger com Basic Auth:** `/api/docs` e `/api/docs-json` pedem usuário/senha de `SWAGGER_USER`/`SWAGGER_PASSWORD`, comparados em tempo constante, só com HTTPS. Exige definir e guardar essas credenciais.
+- **C. Restringir no proxy reverso:** liberar `/api/docs` só para IPs/VPN da equipe, sem mudar a API.
 
 ---
 
@@ -430,4 +518,4 @@ npm run build
 npm run start
 ```
 
-> ⚠️ Em produção: troque `JWT_SECRET` e todas as senhas. Nunca use as credenciais de demo.
+> ⚠️ Em produção: troque `JWT_SECRET` e todas as senhas. Nunca use as credenciais de demo. Variáveis obrigatórias e fluxo em [Homologação](#homologação).
